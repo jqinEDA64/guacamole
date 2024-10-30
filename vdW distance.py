@@ -75,13 +75,13 @@ class Interface :
     
     # Compute vdW gap (arg min of getEnergy()) and return the value in [A]
     # Use Newton's method for minimization
-    def getVDWGap(self, tol = 0.01):
+    def getVDWGap(self, tol = 1e-4):
 
         d_curr = 10*(1/self.k_m + 1/self.k_s)  # Select something large (getPauliEnergy() = 0)
         d_diff = 1e5                           # Relative difference in bond length
         eps    = 1e-8                          # Epsilon to avoid divide-by-zero
         
-        while np.abs(d_diff) > 1e-4:
+        while np.abs(d_diff) > tol:
             d_old  = d_curr
             d_curr = d_curr - self.getEnergyDerivative(d_curr)/(np.abs(self.getEnergy(d_curr)) + eps)
             d_diff = 0.5*(d_curr - d_old) / (d_curr + d_old)

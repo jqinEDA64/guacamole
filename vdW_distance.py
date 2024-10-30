@@ -74,7 +74,7 @@ class Interface :
         return (self.getEnergy(d+0.5*d_eps)-self.getEnergy(d-0.5*d_eps))/d_eps
     
     # Compute vdW gap (arg min of getEnergy()) and return the value in [A]
-    # Use Newton's method for minimization
+    # Use simple gradient descent algorithm
     def getVDWGap(self, tol = 1e-4):
 
         d_curr = 10*(1/self.k_m + 1/self.k_s)  # Select something large (getPauliEnergy() = 0)
@@ -89,19 +89,34 @@ class Interface :
         return d_curr
     
     # Plot the interface energy per area as a function of separation
-    def plotEnergy(self):
-        x_vals = np.linspace(1.5, 5, 50)
+    def __plotEnergy(self, d_min, d_max):
+        x_vals = np.linspace(d_min, d_max, 100)
         y_VDW = [self.getVDWEnergy(d, True) for d in x_vals]
         y_Pau = [self.getPauliEnergy(d) for d in x_vals]
         y_Tot = [self.getEnergy(d) for d in x_vals]
-        plt.plot(x_vals, y_VDW)
-        plt.plot(x_vals, y_Pau)
-        plt.plot(x_vals, y_Tot)
+        plt.plot(x_vals, y_VDW, color = "black", ls = "--", label = "vdW Energy")
+        plt.plot(x_vals, y_Pau, color = "black", ls = "-.", label = "Pauli Energy")
+        plt.plot(x_vals, y_Tot, color = "black", ls = "-" , label = "Total Energy")
+        plt.xlabel("Interface separation [$\\AA$]")
+        plt.ylabel("Interfacial energy [Ha/$\\AA$^2]")
+        return plt
+
+    def plotEnergy(self, extratext = ""):
+        d_VDW = self.getVDWGap()
+        plt = self.__plotEnergy(d_VDW-1.5, d_VDW+3)
+        label = "$d^*=$" + str(round(d_VDW,2)) + " $\\AA$"
+        plt.scatter(d_VDW, self.getEnergy(d_VDW), color = "red", zorder = 100, label = label)
+        plt.legend()
+
+        title = "Interface energy vs interface separation"
+        if len(extratext) :
+            title += ":\n" + extratext
+        plt.title(title)
         plt.show()
     
 MS_int = Interface(1,2,0.08,0.005,520,48,558,12)
 MS_int.plotEnergy()
-d_vdw = MS_int.getVDWGap()
-print(d_vdw)
+#d_vdw = MS_int.getVDWGap()
+#print(d_vdw)
 
 # TODO try graphene-graphene layers

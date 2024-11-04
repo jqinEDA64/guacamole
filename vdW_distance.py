@@ -3,14 +3,19 @@ import matplotlib.pyplot as plt
 
 
 # Define numerical constants and conversion factors
-Q_CONST   = 1.6e-19        # [C]
-EPS_CONST = 8.85e-12       # [F/m]
-EPS_NATURAL_CONST = 55.3   # [e^2 eV^(-1) um^(-1)]
-EPS_HA_A_CONST = 0.149     # [e^2 Ha^(-1) A^(-1)]
-EV_HARTREE_CONST = 27.2    # [eV/Ha]
-ANGSTROM_BOHR_CONST = 0.53 # [a0/A]
-EV_J_CONST = Q_CONST       # [J/eV]
-PI = np.pi                 # []
+PI                  = np.pi      # []
+Q_CONST             = 1.6e-19    # [C]
+EPS_CONST           = 8.85e-12   # [F/m]
+EPS_NATURAL_CONST   = 55.3       # [e^2 eV^(-1) um^(-1)]
+EPS_HA_A_CONST      = 0.149      # [e^2 Ha^(-1) A^(-1)]
+EV_HARTREE_CONST    = 27.2       # [eV/Ha]
+ANGSTROM_BOHR_CONST = 0.53       # [a0/A]
+EV_J_CONST          = Q_CONST    # [J/eV]
+PLANCK_CONST        = 6.63e-34   # [J s]
+RED_PLANCK_CONST    = \
+    PLANCK_CONST/(2*PI)          # [J s]
+ELECTRON_MASS       = 9.11e-31   # [kg]
+
 
 class Surface :
     # Constructor for surface of a metal or semiconductor or insulator
@@ -23,11 +28,12 @@ class Surface :
     #
     # The use of Bohr instead of Angstrom in the vdW-related quantities does not matter because the length unit
     # is divided out when computing the Hamaker constant A_ms.
-    def __init__(self, k, sigma, C6, alpha):
+    def __init__(self, k, sigma, C6, alpha, name):
         self.k     = k
         self.sigma = sigma
         self.C6    = C6
         self.alpha = alpha
+        self.name  = name
 
     # Approximate method to estimate the wavefunction decay constants
     # from the static polarizabilities
@@ -46,30 +52,42 @@ class Surface :
     # - Metal's workfunction [eV]
     # - Electron effective mass [me]
     # - Carrier density [A^(-3)]
+    #
+    # TODO how to compute this accurately????
     @staticmethod
     def compMetalDecayConst(W, m, rho):
+
+        c = 2*m*ELECTRON_MASS/RED_PLANCK_CONST**2  # Standard SI units
+
+        # Simplest model first
+        W_SI = Q_CONST*W
+        k = 1e-10*np.sqrt(c*W_SI)
+        k = 2*k
+        print("Metal has k = " + str(round(k,2)) + " [A^(-1)] or k^(-1) = " + str(round(k**(-1),2)) + " [A]")
+        return k
+
         return 0
 
-    # This method creates a metal surface. The inputs are
+    # Factory method which creates a metal surface. The inputs are
     # - Workfunction, W [eV]
     # - Carrier effective mass, m [me]
     # - Carrier density, rho [A^(-3)]
     # - Atomic C6 coefficient, C6 [Ha a0^6]
     # - Atomic polarizability, alpha [a0^3]
     @staticmethod
-    def makeMetalSurface(W, m, rho, C6, alpha):
+    def makeMetalSurface(W, m, rho, C6, alpha, name):
         k = Surface.compMetalDecayConst(W, m, rho)
         sigma = rho/(2*k)
-        return Surface(k, sigma, C6, alpha)
+        return Surface(k, sigma, C6, alpha, name)
     
-    # This method creates a low-D material surface. The inputs are
+    # Factory method which creates a low-D material surface. The inputs are
     # - Wavefunction decay constant, k [A^(-1)]
     # - Valence charge density per area, sigma [A^(-2)]
     # - Atomic C6 coefficient, C6 [Ha a0^6]
     # - Atomic polarizability, alpha [a0^3]
     @staticmethod
-    def make2DSurface(k, sigma, C6, alpha):
-        return Surface(k, sigma, C6, alpha)
+    def make2DSurface(k, sigma, C6, alpha, name):
+        return Surface(k, sigma, C6, alpha, name)
 
 
 # Interface class. Generic class which represents metal-semiconductor interfaces.
@@ -190,5 +208,7 @@ class Interface :
         title = "Interface energy vs interface separation"
         if len(extratext) :
             title += ":\n" + extratext
+        else :
+            title += ":\n" + self.s1.name + " on " + self.s2.name
         plt.title(title)
         plt.show()

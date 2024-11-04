@@ -36,13 +36,14 @@ class Interface :
         self.sigma_s = rho_s/(2*k_s)                            # Surface charge on semiconductor (no q multiplier) [A^(-2)]
         self.A_ms    = 0.58*np.sqrt(C6_m*C6_s)/alpha_m/alpha_s  # Hamaker constant [Ha]
 
-    # Approximate method to estimate the wavefunction decy constants
+    # Approximate method to estimate the wavefunction decay constants
     # from the static polarizabilities
     # Input polarizability "alpha" in Bohr^3.
     # Output decay constant "k" in A^(-1).
     @staticmethod
     def getDecayFromPolarizability(alpha):
-        return 7.02*np.power(alpha, -0.333)
+        k = 7.02*np.power(alpha, -0.333)
+        return k
 
     # Factory method to create an interface, eliminating the dependence on decay constants
     # (which are estimated from the static polarizabilities)
@@ -73,11 +74,12 @@ class Interface :
     # Output wavefunction overlap []
     def getOverlap(self, d):
         k_avg = 0.5*(self.k_m + self.k_s)
-        S = 0
-        if self.k_m == self.k_s :
-            S = np.exp(-k_avg*d)*d
-        else :
-            S = np.exp(-k_avg*d)*2*np.sinh((self.k_m-self.k_s)*d/2)/(self.k_m-self.k_s)
+        S = np.exp(-k_avg*d)*d
+        #S = 0
+        #if self.k_m == self.k_s :
+        #    S = np.exp(-k_avg*d)*d
+        #else :
+        #    S = np.exp(-k_avg*d)*2*np.sinh((self.k_m-self.k_s)*d/2)/(self.k_m-self.k_s)
         return 2*np.sqrt(self.k_m*self.k_s)*S
 
     # Compute Pauli repulsion energy at distance d [A]

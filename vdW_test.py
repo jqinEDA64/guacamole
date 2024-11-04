@@ -15,6 +15,7 @@ alpha_C = 11.7  # Static polarizability for Carbon [a0^3]
 # This implies that each atom occupies 2.62 A^2 area. If Carbon has 4 valence 
 # electrons per atom, the area density of Carbon valence electrons is 4/(2.62 A^2)
 sigma_C = 1.53  # Area density of Carbon valence electrons [A^(-2)]
+#sigma_C  = 0.19
 
 # What is the decay length of graphene wavefunction, perpendicular to the sheet?
 # Not sure but use atomic Carbon as a guide
@@ -23,6 +24,7 @@ sigma_C = 1.53  # Area density of Carbon valence electrons [A^(-2)]
 #
 
 k_C     = 3.07              # Inverse decay length of wavefunction perpendicular to graphene sheet [A^(-1)]
+#k_C     = 2.5
 rho_C   = 2*k_C*sigma_C  # Effective volume charge of graphene [e A^(-3)]
 
 # TODO how to convert the energy scale to binding energy in [eV]?
@@ -38,9 +40,9 @@ def test_carbon_metal(rho_M, C6_M, alpha_M, interfacename = ""):
 # Test bench
 ############
 
-#test_carbon_metal(rho_C, C6_C, alpha_C, "Carbon on Carbon")
-#test_carbon_metal(0.18, 520, 57.5, "Aluminum on Carbon")
-#test_carbon_metal(0.059, 427, 45.4, "Gold on Carbon")
+test_carbon_metal(rho_C, C6_C, alpha_C, "Carbon on Carbon")
+test_carbon_metal(0.18, 520, 57.5, "Aluminum on Carbon")
+test_carbon_metal(0.059, 427, 45.4, "Gold on Carbon")
 #test_carbon_metal(0.18, 427, 45.4, "Gold on Carbon w/ Aluminum charge density")
 #test_carbon_metal(0.12, 1570, 123, "Scandium on Carbon")
 #test_carbon_metal(0.0847, 264, 41.7, "Copper on Carbon")
@@ -48,3 +50,4 @@ def test_carbon_metal(rho_M, C6_M, alpha_M, interfacename = ""):
 #test_carbon_metal()
 
 #test_graphene_graphene()
+#test_carbon_metal(0.30, 2020, 50.5, "Aluminum on Carbon")

@@ -92,7 +92,7 @@ class Surface :
     def printVDWStrength(self):
         C6 = self.C6
         a  = self.alpha
-        print(self.name + " has normalized C6/(a0^2) = " + str(round(C6/a/a,2)) + " [Ha]")
+        print(self.name + " has normalized C6/(a0^2) = " + str(round(C6/a/a,3)) + " [Ha]")
 
     # Set the area density of atoms on the surface of this solid.
     # - Area density of atoms on surface, Na [A^(-2)]
@@ -108,7 +108,7 @@ class Interface :
     def __init__(self, s1, s2):
         self.s1 = s1
         self.s2 = s2
-        self.A_ms = 0.58*np.sqrt(self.s1.C6*self.s2.C6)/(self.s1.alpha*self.s2.alpha)
+        self.A_ms = 8*np.sqrt(self.s1.C6*self.s2.C6)/(self.s1.alpha*self.s2.alpha)
         #self.A_ms = PI**2*self.s1.Na**(3/2)*self.s2.Na**(3/2)*ANGSTROM_BOHR_CONST**(-6)*np.sqrt(self.s1.C6*self.s2.C6)
 
     # Factory method to create an interface, eliminating the dependence on decay constants

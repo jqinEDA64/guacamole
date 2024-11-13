@@ -8,6 +8,7 @@ Q_CONST             = 1.6e-19    # [C]
 EPS_CONST           = 8.85e-12   # [F/m]
 EPS_NATURAL_CONST   = 55.3       # [e^2 eV^(-1) um^(-1)]
 EPS_HA_A_CONST      = 0.149      # [e^2 Ha^(-1) A^(-1)]
+EPS_EV_A_CONST      = 55.3e-4    # [e^2 eV^(-1) A^(-1)]
 EV_HARTREE_CONST    = 27.2       # [eV/Ha]
 ANGSTROM_BOHR_CONST = 1.89       # [a0/A]
 EV_J_CONST          = Q_CONST    # [J/eV]
@@ -28,13 +29,40 @@ class Surface :
     #
     # The use of Bohr instead of Angstrom in the vdW-related quantities does not matter because the length unit
     # is divided out when computing the Hamaker constant A_ms.
-    def __init__(self, k, sigma, C6, alpha, name):
+    def __init__(self, W, k, sigma, C6, alpha, name):
+        self.W     = W
         self.k     = k
         self.sigma = sigma
         self.C6    = C6
         self.alpha = alpha
         self.name  = name
         self.Na    = 0      # Per-area density of atoms on the surface [A^(-2)]
+        self.Chi   = 0      # Electron affinity [eV] (used only for semiconductors)
+        self.Eg    = 0      # Bandgap [eV] (used only for semiconductors)
+        self.type  = ""     # Type ("metal", "insulator", or "semiconductor")
+
+    # Prints the value of k (wavefunction decay constant) and its inverse k^(-1).
+    def printDecayConst(self):
+        k = self.k
+        return self.name + " has k = " + str(round(k,2)) + " [A^(-1)] or k^(-1) = " + str(round(k**(-1),2)) + " [A]"
+
+    # Prints the value of the workfunction
+    def printWorkfunction(self):
+        return self.name + " has W = " + str(round(self.W,2)) + " [eV]"
+
+    # Prints relative value of vdW attraction strength. 
+    # Essentially C6 divided by free-atom volume.
+    def printVDWStrength(self):
+        C6 = self.C6
+        a  = self.alpha
+        return self.name + " has normalized C6/(a0^2) = " + str(round(C6/a/a,3)) + " [Ha]"
+
+    # Set the area density of atoms on the surface of this solid.
+    # - Area density of atoms on surface, Na [A^(-2)]
+    def setAreaDensity(self, Na):
+        self.Na = Na
+
+class Metal(Surface) :
 
     # Assuming the metal wavefunction goes as exp(-kz) outside the metal
     # Compute the decay constant, k, in terms of the 
@@ -55,49 +83,42 @@ class Surface :
         k      = 1e-10*np.sqrt(K_sq)
         return k
 
-    # Factory method which creates a metal surface. The inputs are
+    # Constructor from 
     # - Workfunction, W [eV]
-    # - Carrier effective mass, m [me]
+    # - Electron effective mass, m [me]
     # - Carrier density, rho [A^(-3)]
     # - Atomic C6 coefficient, C6 [Ha a0^6]
-    # - Atomic polarizability, alpha [a0^3]
-    @staticmethod
-    def makeMetalSurface(W, m, rho, C6, alpha, name):
-        k = Surface.compMetalDecayConst(W, m, rho)
+    # - Atomic static polarizability, alpha [a0^3]
+    # - Metal's name (a string)
+    def __init__(self, W, m, rho, C6, alpha, name):
+        k = Metal.compMetalDecayConst(W, m, rho)
         sigma = rho/(2*k)
-        return Surface(k, sigma, C6, alpha, name)
-    
+        super().__init__(W, k, sigma, C6, alpha, name)
+        self.type = "metal"
+
     # Factory method which creates a metal surface from its
     # density, molar mass, resistivity, and valence. The inputs are
     # - Workfunction, W [eV]
     # - 
-    # TODO
-    
-    # Factory method which creates a low-D material surface. The inputs are
+    # TODO TODO TODO
+
+class Semiconductor(Surface):
+
+    # Constructor which creates a low-D semiconductor. The inputs are
+    # - Workfunction, W [eV]. This is used to 
+    #   (1) implicitly determine the doping (if any) and therefore carrier type of the semiconductor
+    #   (2) implicitly determine the Fermi level.
+    # - Electron affinity, Chi [eV].
+    # - Bandgap, Eg [eV].
     # - Wavefunction decay constant, k [A^(-1)]
     # - Valence charge density per area, sigma [A^(-2)]
     # - Atomic C6 coefficient, C6 [Ha a0^6]
     # - Atomic polarizability, alpha [a0^3]
-    @staticmethod
-    def make2DSurface(k, sigma, C6, alpha, name):
-        return Surface(k, sigma, C6, alpha, name)
-
-    # Prints the value of k (wavefunction decay constant) and its inverse k^(-1).
-    def printDecayConst(self):
-        k = self.k
-        print(self.name + " has k = " + str(round(k,2)) + " [A^(-1)] or k^(-1) = " + str(round(k**(-1),2)) + " [A]")
-
-    # Prints relative value of vdW attraction strength. 
-    # Essentially C6 divided by free-atom volume.
-    def printVDWStrength(self):
-        C6 = self.C6
-        a  = self.alpha
-        print(self.name + " has normalized C6/(a0^2) = " + str(round(C6/a/a,3)) + " [Ha]")
-
-    # Set the area density of atoms on the surface of this solid.
-    # - Area density of atoms on surface, Na [A^(-2)]
-    def setAreaDensity(self, Na):
-        self.Na = Na
+    def __init__(self, W, Chi, Eg, k, sigma, C6, alpha, name):
+        super().__init__(W, k, sigma, C6, alpha, name)
+        self.Chi  = Chi
+        self.type = "semiconductor"
+        self.Eg   = Eg
 
 # Interface class. Generic class which represents metal-semiconductor interfaces.
 # Computes quantities of interest, such as vdW gap distance.
@@ -109,13 +130,10 @@ class Interface :
         self.s1 = s1
         self.s2 = s2
         self.A_ms = 8*np.sqrt(self.s1.C6*self.s2.C6)/(self.s1.alpha*self.s2.alpha)
-        #self.A_ms = PI**2*self.s1.Na**(3/2)*self.s2.Na**(3/2)*ANGSTROM_BOHR_CONST**(-6)*np.sqrt(self.s1.C6*self.s2.C6)
 
-    # Factory method to create an interface, eliminating the dependence on decay constants
-    # (which are estimated from the static polarizabilities)
-    @staticmethod
-    def makeInterface(s1, s2):
-        return Interface(s1, s2)
+    ##############
+    # vdW distance
+    ##############
 
     def checkDistSign(self, d):
         if d <= 0 :
@@ -126,13 +144,6 @@ class Interface :
     # Output: energy per area [Ha/A^2]
     def getVDWEnergy(self, d, damp = False):
         self.checkDistSign(d)
-
-        ##################################
-        # Temporary vdW energy for testing
-        ##################################
-        #C6 = np.sqrt(self.s1.C6*self.s2.C6)
-        #C  = C6/(self.s1.alpha*self.s2.alpha)**0.333
-        #return -C*ANGSTROM_BOHR_CONST**(-4)/np.sqrt(d**2 + 1)**6
 
         k1 = self.s1.k
         k2 = self.s2.k
@@ -153,7 +164,7 @@ class Interface :
         k2 = self.s2.k
 
         k_avg = 0.5*(k1 + k2)
-        #S = np.exp(-k_avg*d)*d
+
         S = 0
         if k1 == k2 :
             S = np.exp(-k_avg*d)*d
@@ -248,4 +259,45 @@ class Interface :
         plt.title(title)
         plt.show()
 
+    ##########################
+    # Schottky barrier physics
+    ##########################
+    # Always assumes the FIRST material is the metal 
+    # and SECOND material is the semiconductor.
+
+    @staticmethod
+    def checkCarrierType(carriertype) :
+        isN = carriertype == "n"
+        isP = carriertype == "p"
+        if (not isN) and (not isP) :
+            print("ERROR: Carrier type must be n or p")
+            quit()
+
+    def getPhi_SchottkyMott(self, carriertype = "n") :
+        Interface.checkCarrierType(carriertype)
+        Phi = self.s1.W - self.s2.Chi  # n-type Schottky-Mott limit
+        if carriertype == "p":
+            Phi = self.s2.Eg - Phi
+        return Phi
+
+    # Pushback dipole = 1/eps0 \int dz z \Delta \rho(z)
+    # 
+    # Here, \Delta \rho(z) = 2 S[m,s] \Phi_m(z) \Phi_s(z) (\Phi_{m,s} integrate to \sigma_{m,s})
+    #                      = 2 \sqrt{\rho_m \rho_s} S[m,s] e^{\kappa_m(-d/2-z) + \kappa_s(z-d/2)}.
+    # We approximate 
+    #   \int dz z e^{\kappa_m(-d/2-z) + \kappa_s(z-d/2)} \approx d^3/6 * e^{-(\kappa_m+\kappa_s)d/2} * (\kappa_s-\kappa_m).
+    def getDipole_Pushback(self, d) :
+        k_m   = self.s1.k
+        k_s   = self.s2.k
+        rho_m = 2*k_m*self.s1.sigma
+        rho_s = 2*k_s*self.s2.sigma
+
+        S          = self.getOverlap(d)                                   # []
+        V_integral = d**3 / 6 * np.exp(-(k_m+k_s)*d/2) * (k_s-k_m)        # [A^2]
+        prefactor  = EPS_EV_A_CONST**(-1) * 2 * S * np.sqrt(rho_m*rho_s)  # [eV A / q^2 * e A^(-3)]
+
+        return prefactor*V_integral
     
+    def getDipole_IDIS(self, d):
+        return 0
+

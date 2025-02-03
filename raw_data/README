@@ -1,0 +1,5 @@
+DoS_CNT_11_0.dat is the raw data downloaded from https://lampz.tugraz.at/~hadley/ss1/bands/tbtable/cnt_files/11_0.html 
+
+DoS_CNT_11_0_clean.dat is the the same as DoS_CNT_11_0.dat, but processed according to process_CNT_data.py
+- The first column E is the difference between the energy and the intrinsic Fermi energy (for CNT, this is midgap) in eV.
+- The second column DoS is the density of states in [eV^(-1) m^(-1)].

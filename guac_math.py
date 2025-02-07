@@ -139,7 +139,7 @@ def getKernel(Param, dE, kerneltype = "Lorentzian"):
 def __accumIntoArr(arr_1, arr_2, i):
     N1 = arr_1.shape[0]
     N2 = arr_2.shape[0]
-    if N2 >= N1 :
+    if N2 < N1 :
         print("ERROR: Array accumulation size mismatch")
         quit()
     if (i < 0) or (i+N1 > N2) :
@@ -188,8 +188,8 @@ def getNonUnifConv(arr_in, E_in, arr_param, kern_type = "Lorentzian"):
     dE = E_in[1] - E_in[0]    
     
     # Compute the appropriate shape of arr_out
-    min_index = 0
-    max_index = 0
+    min_index = 0  # min_index < 0
+    max_index = 0  # max_index > N_in
     for i in range(N_in) :
         N = getKernelWidth(arr_param[i], dE, kern_type)
         min_index = min(min_index, i-N)
@@ -199,12 +199,11 @@ def getNonUnifConv(arr_in, E_in, arr_param, kern_type = "Lorentzian"):
     N_out = max_index-min_index+1
     arr_out = np.zeros(N_out)
     
-    # Accumulate non-uniform convolution values
-    # into output
+    # Accumulate non-uniform convolution values into output
     for i in range(N_in) :
         __accumIntoArr(arr_in[i]*getKernel(arr_param[i], dE, kern_type), \
                        arr_out,                                          \
-                       i -  getKernelWidth(arr_param[i], dE, kern_type))
+                       i - min_index - getKernelWidth(arr_param[i], dE, kern_type))
     
     # Create E_out
     E0    = E_in[0] + min_index*dE  # NOTE: min_index < 0
@@ -231,3 +230,4 @@ def saveAndShow(fig, fig_path):
     png_path = fig_path + ".png"
     fig.savefig(png_path, dpi=500)
     os.system("gio open " + png_path + " &")
+    #os.system("imgcat " + png_path + " &")

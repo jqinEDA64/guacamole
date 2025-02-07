@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy
+import os
 
 
 ####################################
@@ -141,7 +142,7 @@ def __accumIntoArr(arr_1, arr_2, i):
     if N2 >= N1 :
         print("ERROR: Array accumulation size mismatch")
         quit()
-    if (i < 0) or (i+N1 > N2-1) :
+    if (i < 0) or (i+N1 > N2) :
         print("ERROR: Array accumulation out-of-bounds")
         quit()
     
@@ -161,9 +162,11 @@ def __accumIntoArr(arr_1, arr_2, i):
 # Inputs:
 # - arr_in   : Input array of values to be 
 #              convoluted with nonuniform kernel.
+# - E_in     : Energies of the input array (same as
+#              x-coordinates, essentially). It is assumed
+#              that dE = E_in[i+1]-E_in[i].
 # - arr_param: Array of kernel parameters. Must
 #              have same size as arr_in.
-# - dE       : Grid spacing (float)
 # - kern_type: Either "Lorentzian" or "Gaussian" (currently)
 #
 # Output:
@@ -171,12 +174,19 @@ def __accumIntoArr(arr_1, arr_2, i):
 #              of arr_in). Is larger than
 #              arr_in due to nonuniform, nonperiodic
 #              convolution.
-def getNonUnifConv(arr_in, arr_param, dE, kern_type = "Lorentzian"):
+# - E_out    : Output array of energies (equivalent of E_in).
+#              Is larger than E_in due to nonuniform convolution.
+def getNonUnifConv(arr_in, E_in, arr_param, kern_type = "Lorentzian"):
     
     N_in = arr_in.shape[0]
     if N_in != arr_param.shape[0] :
         print("ERROR: arr_in and arr_param must have same shape")
+    if N_in != E_in.shape[0] :
+        print("ERROR: arr_in and E_in must have same shape")
         
+    # Implicit energy spacing
+    dE = E_in[1] - E_in[0]    
+    
     # Compute the appropriate shape of arr_out
     min_index = 0
     max_index = 0
@@ -186,7 +196,8 @@ def getNonUnifConv(arr_in, arr_param, dE, kern_type = "Lorentzian"):
         max_index = max(max_index, i+N)
         
     # Create arr_out
-    arr_out = np.zeros(max_index-min_index+1)
+    N_out = max_index-min_index+1
+    arr_out = np.zeros(N_out)
     
     # Accumulate non-uniform convolution values
     # into output
@@ -195,7 +206,11 @@ def getNonUnifConv(arr_in, arr_param, dE, kern_type = "Lorentzian"):
                        arr_out,                                          \
                        i -  getKernelWidth(arr_param[i], dE, kern_type))
     
-    return arr_out
+    # Create E_out
+    E0    = E_in[0] + min_index*dE  # NOTE: min_index < 0
+    E_out = np.asarray([E0 + i*dE for i in range(N_out)])
+    
+    return arr_out, E_out
 
 
 ####################################
@@ -213,5 +228,6 @@ def getNonUnifConv(arr_in, arr_param, dE, kern_type = "Lorentzian"):
 #
 # ... etc.
 def saveAndShow(fig, fig_path):
-    fig.savefig(fig_path, dpi=500)
-    os.system("gio open " + fig_path + " &")
+    png_path = fig_path + ".png"
+    fig.savefig(png_path, dpi=500)
+    os.system("gio open " + png_path + " &")

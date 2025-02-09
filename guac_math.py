@@ -424,7 +424,7 @@ def saveAndShow(fig, fig_path):
 #
 # Outputs:
 # - E_vals   : Energy values [eV]
-# - D_vals   : Density of states [TODO]
+# - D_vals   : Density of states [unknown units; must be checked manually]
 def loadDoSFromFile(file_path, E_zero = None):
 
     # Read from disk
@@ -459,3 +459,38 @@ def loadDoSFromFile(file_path, E_zero = None):
     return E_vals, D_vals
 
     
+####################################
+# CUSTOM DATASETS (STORED IN THIS
+# PROJECT'S CODEBASE)
+####################################
+
+
+# Loads the CNT (11,0) DoS from file (stored in guacamole codebase).
+# Applies a small amount of Gaussian smoothing because
+# otherwise the van Hove singularities in the 1D DoS
+# will lead to heavy aliasing and thus accuracy issues
+# in CNL and related computations.
+#
+# Outputs: 
+# - E_vals : Energy values [eV] 
+# - D_vals : Density of states [eV^(-1) nm^(-2)]
+def loadCNT_11_0_DoSFromFile():
+    
+    # Read CNT density of states from disk
+    E_vals, D_vals = loadDoSFromFile("raw_data/DoS_CNT_11_0_clean.dat")
+    
+    # Reduce aliasing error by a small amount of smoothing
+    D_vals, E_vals = getNonUnifConv(D_vals, E_vals, 0.01, "Gaussian")
+    
+    # Estimate CNT diameter (see raw_data/README)
+    d_CNT = 0.8 # [nm]
+    
+    # Convert D_vals from [eV^(-1) m^(-1)] to [eV^(-1) nm^(-2)]
+    D_vals = (1e-9 / (np.pi*d_CNT)) * D_vals
+    
+    return E_vals, D_vals
+    
+
+
+
+

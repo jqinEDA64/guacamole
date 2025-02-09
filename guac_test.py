@@ -64,8 +64,8 @@ def test_NonUnif_Conv_0(Gamma, dE):
 
 def test_NonUnif_Conv_CNT(Gamma):
 
-    # Read CNT density of states from disk
-    E_vals, D_vals = loadDoSFromFile("raw_data/DoS_CNT_11_0_clean.dat")
+    # Load CNT density of states from disk
+    E_vals, D_vals = loadCNT_11_0_DoSFromFile()
     
     # Create uniform array of Gamma values
     G_vals = Gamma*np.ones(E_vals.shape[0])
@@ -93,13 +93,14 @@ def test_NonUnif_Conv_CNT(Gamma):
 
 
 def test_CNL_CNT(Gamma_V, Gamma_C):
-
-    # Read CNT density of states from disk
-    E_vals, D_vals = loadDoSFromFile("raw_data/DoS_CNT_11_0_clean.dat")
     
-    # TODO jqin: This is just for testing!
-    #            Try to reduce the aliasing error by pre-smoothing
-    D_vals, E_vals = getNonUnifConv(D_vals, E_vals, 0.01, "Gaussian")
+    # Load CNT density of states from disk
+    E_vals, D_vals = loadCNT_11_0_DoSFromFile()
+    
+    # Get the DoS of only valence and only conduction bands
+    # NOTE: Assumes that E = 0 lies inside the bandgap!!!
+    D_V_vals = np.where(E_vals <= 0, D_vals, 0)
+    D_C_vals = np.where(E_vals >  0, D_vals, 0)
     
     # Create Gamma values which may be different in the
     # valence and conduction bands
@@ -113,7 +114,9 @@ def test_CNL_CNT(Gamma_V, Gamma_C):
     #G_vals = 0.03*np.asarray([min(1, np.abs(E-E_Dirac)) for E in E_vals])
     
     # Compute non-uniform convolution
-    D_out, E_out = getNonUnifConv(D_vals, E_vals, G_vals, "Lorentzian")
+    D_out  , E_out = getNonUnifConv(D_vals  , E_vals, G_vals, "Lorentzian")
+    D_C_out, E_out = getNonUnifConv(D_C_vals, E_vals, G_vals, "Lorentzian")
+    D_V_out, E_out = getNonUnifConv(D_V_vals, E_vals, G_vals, "Lorentzian")
     #D_out, E_out = getNonUnifConv(D_vals, E_vals, G_vals, "Gaussian")
     
     # Ensure that input and output satisfy the "Sum Rule"
@@ -127,20 +130,23 @@ def test_CNL_CNT(Gamma_V, Gamma_C):
     # Plot input and output on the same graph
     fig, ax = plt.subplots(2, sharex = True)  # Ensure the plots share a common x-axis
     fig.suptitle("MIGS and CNL of CNT")
-    ax[0].plot(E_vals, D_vals, label = "Original DoS", color = "blue")
-    ax[0].plot(E_out , D_out , label = "Convoluted DoS", color = "red")
+    
+    ax[0].plot(E_vals, D_vals, label = "Original DoS",   color = "black")
+    ax[0].plot(E_out , D_out , label = "Convoluted DoS", color = "purple")
+    ax[0].fill_between(E_out, 0, D_V_out, alpha = 0.5, color = "blue", label = "Valence band states")
+    ax[0].fill_between(E_out, 0, D_C_out, alpha = 0.5, color = "red" , label = "Conduction band states")
     ax[0].set_title("Density of states")
     ax[0].set_ylabel("DoS [eV$^{-1}$ m$^{-1}$]")
-    
     CNL_label = "CNL = " + str(round(float(CNL), 2)) + " [eV]"
     ax[0].axvline(x = CNL, label = CNL_label, linestyle = "dashed", color = "black")
-    ax[0].legend()
+    ax[0].legend(bbox_to_anchor=(1.05, 1.0), loc = "upper left")
     
     # Also plot Gamma on this graph
     ax[1].plot(E_vals, G_vals, color = "red")
     ax[1].set_title("Metal-semiconductor coupling")
     ax[1].set_xlabel("Energy [eV]")
     ax[1].set_ylabel("$\\Gamma(E)$ [eV]")
+    plt.tight_layout()
     saveAndShow(fig, "test_out/CNL_CNT")
 
 
@@ -164,7 +170,7 @@ def test_resample():
 #test_NonUnif_Conv_0(2, 0.1)
 #test_NonUnif_Conv_CNT(0.03)
 
-test_CNL_CNT(0.04, 0.08)
+test_CNL_CNT(0.04, 0.04)
 #test_load_DoS()
 
 #test_resample()

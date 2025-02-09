@@ -127,18 +127,34 @@ def test_CNL_CNT(Gamma_V, Gamma_C):
     # Compute the new CNL
     CNL = getCNL(D_vals, E_vals, 0, D_out, E_out)
     
+    ############################################
+    # Analytical section
+    ############################################
+    
+    # Estimate MIGS density and CNL from analytical formula
+    E_V = -0.45  # [eV]
+    E_C =  0.45  # [eV]
+    E_MIGS, D_MIGS, CNL_est = getEstMIGSDoS(E_vals, D_vals, G_vals, E_V, E_C)
+    
+    ############################################
+    # End analytical section
+    ############################################
+    
     # Plot input and output on the same graph
     fig, ax = plt.subplots(2, sharex = True)  # Ensure the plots share a common x-axis
     fig.suptitle("MIGS and CNL of CNT")
     
     ax[0].plot(E_vals, D_vals, label = "Original DoS",   color = "black")
     ax[0].plot(E_out , D_out , label = "Convoluted DoS", color = "purple")
+    ax[0].plot(E_MIGS, D_MIGS, label = "Analytical MIGS", color = "green")
     ax[0].fill_between(E_out, 0, D_V_out, alpha = 0.5, color = "blue", label = "Valence band states")
     ax[0].fill_between(E_out, 0, D_C_out, alpha = 0.5, color = "red" , label = "Conduction band states")
     ax[0].set_title("Density of states")
-    ax[0].set_ylabel("DoS [eV$^{-1}$ m$^{-1}$]")
+    ax[0].set_ylabel("DoS [eV$^{-1}$ nm$^{-2}$]")
     CNL_label = "CNL = " + str(round(float(CNL), 2)) + " [eV]"
     ax[0].axvline(x = CNL, label = CNL_label, linestyle = "dashed", color = "black")
+    CNL_analytic_label = "Analytical CNL = " + str(round(float(CNL_est), 2)) + " [eV]"
+    ax[0].axvline(x = CNL_est, label = CNL_analytic_label, linestyle = "dashed", color = "green")
     ax[0].legend(bbox_to_anchor=(1.05, 1.0), loc = "upper left")
     
     # Also plot Gamma on this graph
@@ -150,13 +166,23 @@ def test_CNL_CNT(Gamma_V, Gamma_C):
     saveAndShow(fig, "test_out/CNL_CNT")
 
 
+# This resampling test showed that it is important to
+# apply a small amount of low-pass filtering to CNT DoS
+# to avoid aliasing due to the discontinuity near van Hove singularities.
+#
+# The real-space resampling seems more robust than FFT
+# and has the bonus of being non-periodic (so valence and conduction band
+# states never mix).
 def test_resample():
-    E_in , D_in  = loadDoSFromFile("raw_data/DoS_CNT_11_0_clean.dat")
+
+    # Load CNT density of states from disk
+    E_in, D_in = loadCNT_11_0_DoSFromFile()
     E_out = doResample(E_in, 4)
     D_out = doResample(D_in, 4)
     
-    plt.plot(E_in , D_in , color = "blue")
-    plt.plot(E_out, D_out, color = "red" )
+    plt.plot(E_in , D_in , color = "blue", label = "Original")
+    plt.plot(E_out, D_out, color = "red" , label = "Resampled (4X)")
+    plt.legend()
     plt.title("Test of real-space resampling")
     plt.show()
 
@@ -170,8 +196,8 @@ def test_resample():
 #test_NonUnif_Conv_0(2, 0.1)
 #test_NonUnif_Conv_CNT(0.03)
 
-test_CNL_CNT(0.04, 0.04)
+#test_CNL_CNT(0.02, 0.04)
 #test_load_DoS()
 
-#test_resample()
+test_resample()
 

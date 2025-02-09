@@ -384,9 +384,78 @@ def getCNL(D_in, E_in, CNL_in, D_out, E_out):
     return CNL_out
 
 
+# Get analytical approximation to MIGS density and CNL in bandgap.
+#
+# Inputs:
+# - E_vals : Array of energy values (evenly spaced; strictly increasing)
+#            of the "S" material (i.e., semiconductor with NO metal on top).
+# - D_vals : Array of DoS values corresponding to E_vals (of the "S" material)
+# - G_vals : Array of Lorentzian widths corresponding to the metal-semiconductor
+#           interaction strength, as a function of energy E_vals.
+# - E_V    : Energy of valence band maximum of "S"
+# - E_C    : Energy of conduction band minimum of "S"
+# 
+# Outputs:
+# - E_out  : Array of energy values in the bandgap 
+# - D_out  : Estimated MIGS density in the bandgap
+# - CNL_est: Estimated CNL based on the MIGS density
+def getEstMIGSDoS(E_vals, D_vals, G_vals, E_V, E_C):
+    
+    if E_V < np.min(E_vals) :
+        err_out("Valence band maximum energy out-of-range")
+    if E_C > np.max(E_vals) :
+        err_out("Conduction band minimum energy out-of-range")
+    if E_V >= E_C :
+        err_out ("Conduction band minimum energy must exceed valence band maximum energy")
+    
+    # Estimate the density of states of "X",
+    # the semiconductor with metal on top
+    D_X, E_X = getNonUnifConv(D_vals, E_vals, G_vals, "Lorentzian")
+    
+    # Estimate the "averaged" density of states of the
+    # valence and conduction bands
+    # TODO jqin: think more carefully about this part!!
+    D_spline = scipy.interpolate.CubicSpline(E_X, D_X)
+    D_V = D_spline(E_V)
+    D_C = D_spline(E_C)
+    
+    # TODO jqin: also think more carefully about this part!!
+    #            Should there be some averaging of G as well?
+    G_spline = scipy.interpolate.CubicSpline(E_vals, G_vals)
+    G_V = G_spline(E_V)
+    G_C = G_spline(E_C)
+    
+    # Inner function to estimate MIGS DoS
+    def getMIGS_Analytical(E) :
+        if (E < E_V) or (E > E_C) :
+            err_out("Analytical MIGS formula only holds inside bandgap")
+        migs_C = D_C*(np.arctan(G_C/(E_C - E)) if E != E_C else np.pi/2)
+        migs_V = D_V*(np.arctan(G_V/(E - E_V)) if E != E_V else np.pi/2)
+        return (migs_C + migs_V) / np.pi
+        
+    dE = getEnergyResolution(E_vals)
+    dE = dE * 0.3  # Use better resolution for analytical MIGS
+    
+    # Compute estimated analytical MIGS density
+    E_out = np.arange(E_V, E_C, dE)
+    D_out = np.asarray([getMIGS_Analytical(E) for E in E_out])
+    
+    # Inner function to estimate CNL
+    def getCNL_Analytical() :
+        migs_ratio = (D_V*G_V) / (D_C*G_C)
+        S_CNL      = 1.0 / (1.0 + np.power(migs_ratio, 0.667))
+        CNL        = S_CNL*E_V + (1-S_CNL)*E_C
+        return CNL
+    
+    CNL_out = getCNL_Analytical()
+    
+    return E_out, D_out, CNL_out
+
+
 ####################################
 # FILE I/O
 ####################################
+
 
 # Saves the figure from matplotlib and
 # displays it with Python viewer.

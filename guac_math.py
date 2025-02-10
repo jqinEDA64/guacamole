@@ -17,6 +17,16 @@ import os
 # Custom definition of "large number"
 FLOAT_MAX = 1e30
 
+# Override kernel resolution checking
+# Needed for pre-smoothing of CNT 
+# density of states, for example,
+# since the pre-smoothing is applied 
+# even before upsampling in the energy
+# domain.
+#
+# Must be reset to "False" after overriding.
+OVERRIDE_ENERGY_RESOLUTION_CHECK = False
+
 
 ####################################
 # ERROR HANDLING
@@ -48,15 +58,16 @@ def err_out(msg) :
 # - dE: Maximum grid spacing required to
 #       resolve all the relevant kernels.
 def getMinResolution(G) :
-    # TODO jqin: reactivate this function once
-    #            resampling is sorted out
-    return 1e5
+
+    if  OVERRIDE_ENERGY_RESOLUTION_CHECK == True :
+        return FLOAT_MAX
+
     if   isinstance(G, (int, float)):
         if G == 0 :  # No smoothing; just don't apply any kernel
             return FLOAT_MAX
         return G/4.0
     elif isinstance(G, np.ndarray):
-        return np.min(G)/4.0
+        return np.min(G[G > 0])/4.0  # Min value of positive G
     else:
         err_out("Input data must be a scalar or a NumPy array.")
         return 0
@@ -214,57 +225,47 @@ def getKernel(Param, dE, kerneltype = "Lorentzian"):
 #
 # Inputs: 
 # - arr_in: Input array to be resampled.
-# - f     : Resampling factor (usually > 1)
+# - E_in  : Values of the energy at arr_in indices.
+# - f     : Resampling factor (usually > 1),
+#           or array of energy values at which
+#           to perform the resampling
+# - interp_type : Either "cubic" or "linear" interpolation
 # 
 # Output:
 # - arr_out: Result of resampling.
-def doResample(arr_in, f):
+def doResample(arr_in, E_in, f, interp_type = "cubic"):
 
-    # TODO jqin: Perhaps, apply appropriate amount of 
-    #            Gaussian pre-smoothing to avoid aliasing
-    #            errors and resample correctly
-
-    # Create cubic spline from input data
-    N_in   = arr_in.shape[0]
-    x_in   = np.arange(N_in)
-    spline = scipy.interpolate.CubicSpline(x_in, arr_in)
-    
     # Define resampling points
-    N_out = (int)(N_in*f)
-    x_out = np.linspace(0, N_in-1, N_out)
+    E_in_min = np.min(E_in)
+    E_in_max = np.max(E_in)
+    dE = getEnergyResolution(E_in)
     
-    # Compute the resampled values by spline interp
-    arr_out = [spline(x) for x in x_out]
-    return np.asarray(arr_out)
+    E_out = None
+    if   isinstance(f, (int, float)):
+        E_out = np.arange(E_in_min, E_in_max, dE/f)
+    elif isinstance(f, np.ndarray):
+        if ( np.min(f) < E_in_min ) or ( np.max(f) > E_in_max ) :
+            err_out("Resampling energy array is out-of-range")
+        E_out = f
     
-    # Try FFT resampling
-    # Looks horrible for CNT since lots of aliasing
-    #return scipy.signal.resample(arr_in, N_out)
+    # Compute the resampled values by real-space interpolation.
+    # The default choice is "cubic", although "linear" interpolation
+    # can avoid overshoot errors of discontinuous functions (if we
+    # don't want to go through the trouble of prefiltering them
+    # before the resampling).
+    arr_out = None
+    if   interp_type == "cubic" :
+        spline = scipy.interpolate.CubicSpline(E_in, arr_in)
+        arr_out = np.asarray([spline(E) for E in E_out])
+    elif interp_type == "linear" :
+        arr_out = np.interp(E_out, E_in, arr_in)
+
+    return arr_out
     
 
 ####################################
 # CONVOLUTIONS AND RELATED OPS
 ####################################
-
-
-# Accumulates a small array (from kernel)
-# into a larger array (for entire convolution)
-# with index checking.
-#
-# Inputs:
-# - arr_1 : Small array (length N1)
-# - arr_2 : Large array (length N2 > N1)
-# - i     : Index of arr_2 to accumulate arr_1 into arr_2.
-def __accumIntoArr(arr_1, arr_2, i):
-    N1 = arr_1.shape[0]
-    N2 = arr_2.shape[0]
-    if N2 < N1 :
-        err_out("Array accumulation size mismatch")
-    if (i < 0) or (i+N1 > N2) :
-        err_out("Array accumulation out-of-bounds")
-    
-    # Perform accumulation op (with NumPy slicing)
-    arr_2[i:i+N1] += arr_1
 
     
 # Compute the nonuniform convolution of
@@ -325,6 +326,25 @@ def getNonUnifConv(arr_in, E_in, arr_param, kern_type = "Lorentzian"):
     # Create arr_out
     N_out = max_index-min_index+1
     arr_out = np.zeros(N_out)
+    
+    # Accumulates a small array (from kernel)
+    # into a larger array (for entire convolution)
+    # with index checking.
+    #
+    # Inputs:
+    # - arr_1 : Small array (length N1)
+    # - arr_2 : Large array (length N2 > N1)
+    # - i     : Index of arr_2 to accumulate arr_1 into arr_2.
+    def __accumIntoArr(arr_1, arr_2, i):
+        N1 = arr_1.shape[0]
+        N2 = arr_2.shape[0]
+        if N2 < N1 :
+            err_out("Array accumulation size mismatch")
+        if (i < 0) or (i+N1 > N2) :
+            err_out("Array accumulation out-of-bounds")
+        
+        # Perform accumulation op (with NumPy slicing)
+        arr_2[i:i+N1] += arr_1
     
     # Accumulate non-uniform convolution values into output
     for i in range(N_in) :
@@ -436,7 +456,7 @@ def getEstMIGSDoS(E_vals, D_vals, G_vals, E_V, E_C):
     dE = getEnergyResolution(E_vals)
     dE = dE * 0.3  # Use better resolution for analytical MIGS
     
-    # Compute estimated analytical MIGS density
+    # Compute estimated analytical MIGS density in bandgap [E_V, E_C]
     E_out = np.arange(E_V, E_C, dE)
     D_out = np.asarray([getMIGS_Analytical(E) for E in E_out])
     
@@ -549,7 +569,10 @@ def loadCNT_11_0_DoSFromFile():
     E_vals, D_vals = loadDoSFromFile("raw_data/DoS_CNT_11_0_clean.dat")
     
     # Reduce aliasing error by a small amount of smoothing
+    global OVERRIDE_ENERGY_RESOLUTION_CHECK
+    OVERRIDE_ENERGY_RESOLUTION_CHECK = True   # Temporarily override resolution checking
     D_vals, E_vals = getNonUnifConv(D_vals, E_vals, 0.01, "Gaussian")
+    OVERRIDE_ENERGY_RESOLUTION_CHECK = False  # Restore default setting
     
     # Estimate CNT diameter (see raw_data/README)
     d_CNT = 0.8 # [nm]

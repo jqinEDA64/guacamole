@@ -97,14 +97,22 @@ def test_CNL_CNT(Gamma_V, Gamma_C):
     # Load CNT density of states from disk
     E_vals, D_vals = loadCNT_11_0_DoSFromFile()
     
+    # Create Gamma values which may be different in the
+    # valence and conduction bands
+    G_vals = np.asarray([Gamma_V if E < 0 else Gamma_C for E in E_vals])
+    
+    # Compute upsampling factor required to resolve the
+    # Lorentzian kernels (upsampling factor does not have
+    # to be an integer); perform upsampling
+    f = getEnergyResolution(E_vals) / getMinResolution(G_vals) + 0.1
+    D_vals = doResample(D_vals, E_vals, f)
+    G_vals = doResample(G_vals, E_vals, f, interp_type = "linear")
+    E_vals = doResample(E_vals, E_vals, f)
+    
     # Get the DoS of only valence and only conduction bands
     # NOTE: Assumes that E = 0 lies inside the bandgap!!!
     D_V_vals = np.where(E_vals <= 0, D_vals, 0)
     D_C_vals = np.where(E_vals >  0, D_vals, 0)
-    
-    # Create Gamma values which may be different in the
-    # valence and conduction bands
-    G_vals = np.asarray([Gamma_V if E < 0 else Gamma_C for E in E_vals])
     
     # FIRST CASE: constant Gamma
     #G_vals = 0.03*np.ones(E_vals.shape[0])
@@ -186,9 +194,11 @@ def test_resample():
     plt.title("Test of real-space resampling")
     plt.show()
 
+
 #################################
 # TEST BENCH
 #################################
+
 
 #test_Lorentzian_Kernel(3, 1)
 #test_Gaussian_Kernel(5, 1)
@@ -196,8 +206,8 @@ def test_resample():
 #test_NonUnif_Conv_0(2, 0.1)
 #test_NonUnif_Conv_CNT(0.03)
 
-#test_CNL_CNT(0.02, 0.04)
+test_CNL_CNT(0.02, 0.04)
 #test_load_DoS()
 
-test_resample()
+#test_resample()
 

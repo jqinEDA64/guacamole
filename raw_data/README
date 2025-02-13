@@ -4,3 +4,5 @@ DoS_CNT_11_0_clean.dat is the the same as DoS_CNT_11_0.dat, but processed accord
 - The first column E is the difference between the energy and the intrinsic Fermi energy (for CNT, this is midgap) in eV.
 - The second column DoS is the density of states in [eV^(-1) m^(-1)].
 - In guac_math.py, this DoS in [eV^(-1) m^(-1)] is converted to units of [eV^(-1) nm^(-1)] by the method in https://doi.org/10.1109/ICICDT.2008.4567281.
+
+TODO convert the Matlab script at https://lampz.tugraz.at/~hadley/ss1/bands/tbtable/cnt_files/cnt.m to Python so we can generate all kinds of CNT DOS.

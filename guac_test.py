@@ -5,6 +5,7 @@
 #################################
 
 from guac_math    import *
+from guac_physics import *
 from guac_classes import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -195,6 +196,67 @@ def test_resample():
     plt.show()
 
 
+def test_thermal_expectation():
+    
+    E_vals = np.linspace(-10, 10, 500)
+    D_vals = np.ones(500)
+    
+    kT = 0.025
+    E_F = 0
+    D_avg = getThermalExpectation(D_vals, E_vals, kT, E_F)
+    print("D_avg = " + str(D_avg))
+
+
+def test_ballistic_speed():
+    
+    # Load CNT density of states from disk
+    E_in, D_in = loadCNT_11_0_DoSFromFile()
+    D_in = doResample(D_in, E_in, 2)
+    E_in = doResample(E_in, E_in, 2)
+    E_V = -0.45
+    E_C = +0.45
+    me  = 0.067
+    mh  = 0.067
+    
+    # Compute ballistic transport velocity
+    # of carriers in bare CNT
+    V_in = getBallisticSpeed(E_in, E_V, E_C, mh, me, dim = 1)
+    
+    # Compute ballistic transport velocity
+    # of carriers in "X", CNT underneath metal
+    G = 0.02
+    V_out, E_out = getNonUnifMap (V_in, E_in, E_in, G, kern_type = "Lorentzian")
+    
+    # Compute convolved density of states
+    D_out, E_out = getNonUnifConv(D_in, E_in,       G, kern_type = "Lorentzian")
+    
+    #print((str)(getBallisticSpeed(1, E_V, E_C, mh, me, dim = 1)))
+    
+    # Plotting
+    '''
+    plt.plot(E_in , V_in , color = "red" , label = "Original")
+    plt.plot(E_out, V_out, color = "blue", label = "Convolved")
+    plt.legend()
+    plt.xlabel("Energy [eV]")
+    plt.ylabel("Transport velocity [m/s]")
+    plt.show()
+    '''
+    
+    # TODO jqin: continue working on this and get the well-known
+    #            RQ for single CNT. May need to compute RQ of bare
+    #            CNT rather than CNT-under-metal.
+    
+    # Compute quantum resistance [Ohm . um]
+    E_F = 0.4
+    kT  = 0.025
+    RQ  = getRQ(V_out, D_out, E_out, E_F, kT)
+    
+    # Convert quantum resistance from [Ohm . um] to [Ohm / CNT]
+    d_CNT_um = 0.8e-3           # CNT diameter [um]
+    RQ  = RQ / (np.pi*d_CNT_um) # Larger CNT -> lower RQ
+    print("RQ = " + str(RQ) + " [Ohm] for 1 CNT")
+     
+
 #################################
 # TEST BENCH
 #################################
@@ -206,8 +268,12 @@ def test_resample():
 #test_NonUnif_Conv_0(2, 0.1)
 #test_NonUnif_Conv_CNT(0.03)
 
-test_CNL_CNT(0.02, 0.04)
+#test_CNL_CNT(0.02, 0.04)
 #test_load_DoS()
 
+#test_thermal_expectation()
+
 #test_resample()
+
+#test_ballistic_speed()
 

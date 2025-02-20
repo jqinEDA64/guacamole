@@ -23,6 +23,7 @@ from guac_math import *
 ELECTRON_MASS   = 9.11e-31  # [kg]
 ELECTRON_CHARGE = 1.6e-19   # [C ]
 PLANCK_CONSTANT = 6.626e-34 # [J / Hz]
+RED_PLANCK_CONSTANT = PLANCK_CONSTANT/(2*np.pi)  # [J*s]
 
 
 ####################################
@@ -42,7 +43,7 @@ PLANCK_CONSTANT = 6.626e-34 # [J / Hz]
 # - E_vals: Values of energy corresponding to X_vals [eV]
 # - D_vals: [Optional] can include the semiconductor density of states
 #           if needed. If included, returns the thermal average of X*D
-#           without normalizing for the thermal average of D itself.
+#           WITHOUT normalizing for the thermal average of D itself.
 #
 # Output:
 # - X_avg : Thermal expectation value of X
@@ -148,6 +149,28 @@ def getBallisticSpeed(E, E_V, E_C, M_H, M_E, dim = 2) :
 def getThermalVelocity(kT, M) :
     return getBallisticSpeed(kT, -10, 0, M, M, dim = 1)
 
+
+# In 1D only: Use van Hove singularity to estimate
+# the effective mass of carriers in a band.
+#
+# Inputs:
+# - D_vals: Density of states [eV^(-1) m^(-1)]
+# - E_vals: Energy values     [eV]
+# - E_s   : Location of van Hove singularity [eV]
+# - above : Is the band located above or below E_s?
+#
+# Output:
+# - me    : Effective mass [me]
+def get1DEffMass(D_vals, E_vals, E_s, above = True):
+    
+    # D_1D(E) = 1/h * sqrt(2m/E)
+    # Thus, slope of (D_1D(E))^(-2) vs. E is h^2/2m.
+    y_vals = np.power(D_vals, -2)
+    
+    # TODO
+    
+    return 0
+    
 
 ####################################
 # METAL-INDUCED GAP STATES (MIGS);
@@ -308,7 +331,110 @@ def getRQ(vX_vals, D_vals, E_vals, E_F, kT):
     return 1.0/G_Q
 
 
-# Compute the specific contact resistivity
+# Compute the quantum resistance of
+# electron transport in a material
+# given the number of transport modes
+# as a function of energy,
+# and Fermi energy.
+#
+# Inputs:
+# - M_vals : Number of transport modes as function of energy
+# - E_vals : Energy values corresponding to vX_vals
+#            and D_vals [eV]
+# - E_F    : Fermi energy [eV]
+# - kT     : Thermal voltage [eV]
+#
+# Output:
+# - Quantum resistance [Ohm*?] (units depend on # transport modes and dimension of resistor)
+def getRQfromModes(M_vals, E_vals, E_F, kT):
+    
+    # Compute quantum conductance
+    G_Q = 0.5*ELECTRON_CHARGE*getThermalExpectation(M_vals, E_vals, kT, E_F, D_vals = None)
+    
+    # Return quantum resistance
+    return 1.0/G_Q
+
+# Compute the specific contact conductivity
 # of a metal-semiconductor interface.
-# TODO jqin
+# 
+# Inputs:
+# - G_vals: Amount of broadening as a function of energy [eV].
+#           May be a NumPy array or a constant float.
+# - D_vals: Density of states [eV^(-1) nm^(-2)]
+# - E_vals: Energy values [eV]
+# - E_F   : Fermi energy [eV]
+# - kT    : Thermal voltage [eV]
+#
+# Output:
+# - Specific contact conductivity [Ohm^(-1) um^(-2)]
+def getGC(G_vals, D_vals, E_vals, E_F, kT):
+    
+    # Convert broadening from energy [eV] to hopping rate [s^(-1)]
+    G_in = None
+    if   isinstance(G_vals, (int, float)):
+        G_in = G_vals*np.ones(D_vals.shape[0])
+    elif isinstance(G_vals, np.ndarray):
+        G_in = G_vals
+    G_in = G_vals * ELECTRON_CHARGE / PLANCK_CONSTANT
+    
+    D_in = D_vals*1e6  # Convert D  from [eV^(-1) nm^(-2)] to [eV^(-1) um^(-2)]
+    
+    # Return specific conductivity
+    return ELECTRON_CHARGE*getThermalExpectation(G_in, E_vals, kT, E_F, D_vals = D_in)
+    
+
+# Compute the "alpha" parameter of Solomon's R_cf model.
+#
+# Inputs:
+# - Rsh: Sheet   resistance [Ohm/sq]
+# - RQ : Quantum resistance [Ohm*um]
+# 
+# Output:
+# - Alpha: Rsh/RQ [um^(-1)]
+def getAlpha(Rsh, RQ):
+    return Rsh/RQ
+    
+    
+# Compute the "beta" parameter of Solomon's R_cf model.
+#
+# Inputs:
+# - gC: Specific contact conductivity [Ohm^(-1) um^(-2)]
+# - RQ: Quantum resistance            [Ohm      um     ]
+#
+# Output:
+# - Beta: gC*RQ/2 [um^(-1)]
+def getBeta(gC, RQ):
+    return gC*RQ/2
+    
+
+# Compute the transfer length Lt of Solomon's R_cf model.
+# 
+# Inputs:
+# - Alpha: inverse-length parameter for diffusive transport [um^(-1)]
+# - Beta : inverse-length parameter for ballistic transport [um^(-1)]
+#
+# Output:
+# - Lt   : Transfer length [um]
+def getTransferLength(Alpha, Beta):
+    return np.power(2*Alpha*Beta + Beta*Beta, -0.5)
+    # For CNT, Lt = 1/Beta
+    
+    
+# Compute R_cf, the distributed part of contact resistance,
+# from Solomon's model.
+#
+# Inputs:
+# - RQ : Quantum resistance [Ohm*um]
+# - gC : Specific contact conductivity [Ohm^(-1) um^(-2)]
+# - Rsh: Sheet resistance   [Ohm/sq]
+# - Lc : Contact length     [um].
+#        Contact length may be either float or array.
+def getR_cf(RQ, gC, Rsh, Lc):
+    Alpha = getAlpha(Rsh, RQ)  # [um^(-1)]
+    Beta  = getBeta (gC , RQ)  # [um^(-1)]
+    Lt    = getTransferLength(Alpha, Beta)  # [um]
+    R     = RQ / (2*Beta*Lt)
+    print("Lt = " + str(1e3*Lt) + " [nm]")
+    return R/np.tanh(Lc/Lt)
+
     

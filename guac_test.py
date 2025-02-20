@@ -211,8 +211,8 @@ def test_ballistic_speed():
     
     # Load CNT density of states from disk
     E_in, D_in = loadCNT_11_0_DoSFromFile()
-    D_in = doResample(D_in, E_in, 2)
-    E_in = doResample(E_in, E_in, 2)
+    D_in = doResample(D_in, E_in, 4)
+    E_in = doResample(E_in, E_in, 4)
     E_V = -0.45
     E_C = +0.45
     me  = 0.067
@@ -224,7 +224,7 @@ def test_ballistic_speed():
     
     # Compute ballistic transport velocity
     # of carriers in "X", CNT underneath metal
-    G = 0.02
+    G = 0.01
     V_out, E_out = getNonUnifMap (V_in, E_in, E_in, G, kern_type = "Lorentzian")
     
     # Compute convolved density of states
@@ -243,7 +243,7 @@ def test_ballistic_speed():
     '''
     
     # TODO jqin: continue working on this and get the well-known
-    #            RQ for single CNT. May need to compute RQ of bare
+    #            RQ = 6.5 kOhm for single CNT. May need to compute RQ of bare
     #            CNT rather than CNT-under-metal.
     
     # Compute quantum resistance [Ohm . um]
@@ -251,11 +251,159 @@ def test_ballistic_speed():
     kT  = 0.025
     RQ  = getRQ(V_out, D_out, E_out, E_F, kT)
     
-    # Convert quantum resistance from [Ohm . um] to [Ohm / CNT]
+    # Convert quantum resistance from [Ohm*um] to [Ohm / CNT]
     d_CNT_um = 0.8e-3           # CNT diameter [um]
-    RQ  = RQ / (np.pi*d_CNT_um) # Larger CNT -> lower RQ
-    print("RQ = " + str(RQ) + " [Ohm] for 1 CNT")
-     
+    RQ_1  = RQ / (np.pi*d_CNT_um) # Larger CNT -> lower RQ
+    print("RQ = " + str(RQ_1) + " [Ohm] for 1 CNT")
+    
+    # Compute specific contact conductivity
+    gC = getGC(G, D_out, E_out, E_F, kT)
+    
+    # Compute Rc for various contact lengths Lc
+    Rsh = 0  # Ballistic transport in CNT
+    Lc_vals = np.logspace(0, 2, 50)  # from 10^0 to 10^2
+    
+    Rc_vals = getR_cf(RQ, gC, Rsh, Lc_vals*1e-3)
+    Rc_vals = Rc_vals / (np.pi*d_CNT_um)  # Normalize to 1 CNT
+    
+    plt.plot(Lc_vals, Rc_vals*1e-3)
+    plt.xlabel("Contact length [nm]")
+    plt.ylabel("Contact resistance [k$\\Omega$ per CNT]")
+    plt.xscale("log")
+    plt.show()
+
+
+# Compare my analytical/numerical results with the
+# NEGF study here: 10.1109/LED.2022.3185991 
+def test_SK_paper_MIGS():
+    
+    # Define strength of metal-semiconductor couplings
+    G_1 = 3.5e-3
+    G_2 = 10e-3
+    G_3 = 0.3
+    
+    # TODO jqin: test again with full DOS (not restricted to +- 3 eV).
+    #            is there something funny with logarithmic divergence?
+    
+    # Load CNT density of states from disk
+    E_in, D_in = loadCNTDoSFromFile(11, 0)
+    D_in = D_in[np.abs(E_in) < 3]
+    E_in = E_in[np.abs(E_in) < 3]    
+    
+    #print("Bandgap pts = " + str(0.8/getEnergyResolution(E_in)))
+    
+    D_in = doResample(D_in, E_in, 10)
+    E_in = doResample(E_in, E_in, 10)
+    
+    print("Bandgap pts = " + str(0.8/getEnergyResolution(E_in)))
+    print("33*G_3/dE = " + str(33*G_3/getEnergyResolution(E_in)))
+    #return
+    
+    ###############################
+    # PLOT MIGS DENSITY
+    ###############################
+
+    D_in     = 1e14*D_in  # Convert to [eV^(-1) cm^(-2)] instead of [eV^(-1) nm^(-2)]
+    D_1, E_1 = getNonUnifConv(D_in, E_in, G_1, "Lorentzian")
+    D_2, E_2 = getNonUnifConv(D_in, E_in, G_2, "Lorentzian")
+    D_3, E_3 = getNonUnifConv(D_in, E_in, G_3, "Lorentzian")
+    
+    plt.plot(D_in, E_in, label = "CNT"                , color = "black")
+    plt.plot(D_1 , E_1 , label = "$\\Delta = 3.5$ meV", color = "red")
+    plt.plot(D_2 , E_2 , label = "$\\Delta = 10$ meV" , color = "blue")
+    plt.plot(D_3 , E_3 , label = "$\\Delta = 0.3$ eV" , color = "green")
+    plt.xlabel("Density of states [eV$^{-1}$ cm$^{-2}$]")
+    plt.ylim(-1, 1)
+    plt.xscale("log")
+    plt.legend()
+    plt.ylabel("Energy [eV]")
+    plt.show()
+    
+    
+# Compare my analytical/numerical results with the
+# NEGF study here: 10.1109/LED.2022.3185991 
+def test_SK_paper_RCLC():
+    
+    # Define strength of metal-semiconductor couplings
+    G_1 = 3.5e-3
+    G_2 = 10e-3
+    G_3 = 0.3
+    
+    # Load CNT density of states from disk
+    E_in, D_in = loadCNTDoSFromFile(11, 0)
+    D_in  = doResample(D_in, E_in, 10)
+    E_in  = doResample(E_in, E_in, 10)
+    GQ_in = np.asarray([1/6.45/2 if abs(E) > 0.46 else 0 for E in E_in])
+    
+    # Compute DOS and conductance/CNT per energy after spectral broadening
+    GQ_1, E_1 = getNonUnifConv(GQ_in, E_in, G_1, kern_type = "Lorentzian")
+    GQ_2, E_1 = getNonUnifConv(GQ_in, E_in, G_2, kern_type = "Lorentzian")
+    GQ_3, E_1 = getNonUnifConv(GQ_in, E_in, G_3, kern_type = "Lorentzian")
+    
+    D_1, E_1 = getNonUnifConv(D_in, E_in, G_1, "Lorentzian")
+    D_2, E_2 = getNonUnifConv(D_in, E_in, G_2, "Lorentzian")
+    D_3, E_3 = getNonUnifConv(D_in, E_in, G_3, "Lorentzian")
+    
+    # Define external parameters
+    E_F = -0.55  # [eV]
+    kT  = 0.025  # [eV]
+    
+    # Compute quantum resistance for each situation
+    RQ_1 = 1/getThermalExpectation(GQ_1, E_1, kT, E_F, D_vals = None)
+    RQ_2 = 1/getThermalExpectation(GQ_2, E_2, kT, E_F, D_vals = None)
+    RQ_3 = 1/getThermalExpectation(GQ_3, E_3, kT, E_F, D_vals = None)
+    
+    # Inner function to compute contact resistance
+    # as a function of contact length
+    def getRCLC(RQ_in, G_in, D_in, E_in):
+    
+        # TODO jqin: Map G_in?
+    
+        # Compute specific contact conductivity
+        gC = getGC(G_in, D_in, E_in, E_F, kT)
+        
+        # Compute Rc for various contact lengths Lc
+        Rsh = 0  # Ballistic transport in CNT
+        Lc_vals = np.logspace(0, 2.5, 100)
+        Rc_vals = getR_cf(RQ_in, gC, Rsh, Lc_vals*1e-3)
+        
+        return Lc_vals, Rc_vals
+       
+   
+    # Compute contact resistances as a function of contact length 
+    Lc_1, Rc_1 = getRCLC(RQ_1, G_1, D_1, E_1)
+    Lc_2, Rc_2 = getRCLC(RQ_2, G_2, D_2, E_2)
+    Lc_3, Rc_3 = getRCLC(RQ_3, G_3, D_3, E_3)
+    
+    plt.plot(Lc_1, Rc_1, label = "$\\Delta = 3.5$ meV", color = "red")
+    plt.plot(Lc_2, Rc_2, label = "$\\Delta = 10$ meV" , color = "blue")
+    plt.plot(Lc_3, Rc_3, label = "$\\Delta = 0.3$ eV" , color = "green")
+    plt.xlabel("Contact length [nm]")
+    plt.ylabel("Contact resistance [k$\\Omega$ per CNT]")
+    plt.legend()
+    plt.xscale("log")
+    plt.show()
+    
+    # Also compute transfer length TODO
+    
+    '''
+    # Compute specific contact conductivity
+    gC = getGC(G, D_out, E_out, E_F, kT)
+    
+    # Compute Rc for various contact lengths Lc
+    Rsh = 0  # Ballistic transport in CNT
+    Lc_vals = np.logspace(0, 2, 50)  # from 10^0 to 10^2
+    
+    Rc_vals = getR_cf(RQ, gC, Rsh, Lc_vals*1e-3)
+    Rc_vals = Rc_vals / (np.pi*d_CNT_um)  # Normalize to 1 CNT
+    
+    plt.plot(Lc_vals, Rc_vals*1e-3)
+    plt.xlabel("Contact length [nm]")
+    plt.ylabel("Contact resistance [k$\\Omega$ per CNT]")
+    plt.xscale("log")
+    plt.show()
+    '''
+    
 
 #################################
 # TEST BENCH
@@ -276,4 +424,8 @@ def test_ballistic_speed():
 #test_resample()
 
 #test_ballistic_speed()
+
+#test_SK_paper_MIGS()
+
+test_SK_paper_RCLC()
 

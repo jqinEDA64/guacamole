@@ -115,6 +115,10 @@ def __getLorentzianWidth(Gamma, dE):
     if dE > getMinResolution(Gamma) :
         err_out("Insufficient resolution for Lorentzian kernel")
     return (int)(33*Gamma/dE)
+    # TODO jqin: need enough "spread" to cover the whole bandgap!
+    #            Need to also specify a minimum "Delta E" which must
+    #            be covered...
+    #return 12040
 
 
 # Returns the half-size of the
@@ -470,19 +474,24 @@ def loadDoSFromFile(file_path, E_zero = None):
 ####################################
 
 
-# Loads the CNT (11,0) DoS from file (stored in guacamole codebase).
+# Loads the CNT DoS from file (stored in guacamole codebase).
 # Applies a small amount of Gaussian smoothing because
 # otherwise the van Hove singularities in the 1D DoS
 # will lead to heavy aliasing and thus accuracy issues
 # in CNL and related computations.
 #
+# Inputs:
+# - a1     : CNT parameter 1 (int)
+# - a2     : CNT parameter 2 (int)
+#
 # Outputs: 
 # - E_vals : Energy values [eV] 
 # - D_vals : Density of states [eV^(-1) nm^(-2)]
-def loadCNT_11_0_DoSFromFile():
+def loadCNTDoSFromFile(a1, a2):
     
     # Read CNT density of states from disk
-    E_vals, D_vals = loadDoSFromFile("raw_data/DoS_CNT_11_0_clean.dat")
+    filename = "raw_data/DoS_CNT_" + str(a1) + "_" + str(a2) + "_clean.dat"
+    E_vals, D_vals = loadDoSFromFile(filename)
     
     # Reduce aliasing error by a small amount of smoothing
     global OVERRIDE_ENERGY_RESOLUTION_CHECK
@@ -497,5 +506,10 @@ def loadCNT_11_0_DoSFromFile():
     D_vals = (1e-9 / (np.pi*d_CNT)) * D_vals
     
     return E_vals, D_vals
+
+
+def loadCNT_11_0_DoSFromFile():
+    
+    return loadCNTDoSFromFile(11, 0)
     
 

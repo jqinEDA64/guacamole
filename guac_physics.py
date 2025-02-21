@@ -24,6 +24,8 @@ ELECTRON_MASS   = 9.11e-31  # [kg]
 ELECTRON_CHARGE = 1.6e-19   # [C ]
 PLANCK_CONSTANT = 6.626e-34 # [J / Hz]
 RED_PLANCK_CONSTANT = PLANCK_CONSTANT/(2*np.pi)  # [J*s]
+EPS_0_SI        = 8.85e-12  # [F / m]
+EPS_0_NATURAL   = 55.3      # [e^2 eV^(-1) um^(-1)]
 
 
 ####################################
@@ -200,11 +202,11 @@ def get1DEffMass(D_vals, E_vals, E_s, above = True):
 def getCNL(D_in, E_in, CNL_in, D_out, E_out):
     
     # Sanity check that total number of states is preserved
-    Q_tot_in  = np.sum(D_in )
-    Q_tot_out = np.sum(D_out)
+    Q_tot_in  = np.sum(D_in )*getEnergyResolution(E_in )
+    Q_tot_out = np.sum(D_out)*getEnergyResolution(E_out)
     Q_tot_err = (Q_tot_out-Q_tot_in)/Q_tot_in*100
     if abs(Q_tot_err) > 0.5 :  # Accept rel. err. less than 0.5%
-        err_out("Inputs to CNL computation do not satisfy Sum Rule")
+        err_out("Inputs to CNL computation do not satisfy Sum Rule: Rel Err = " + str(Q_tot_err))
     
     # Compute the functions Q_in(E_in) and Q_out(E_out),
     # the total charges at zero temperature as a function
@@ -295,6 +297,72 @@ def getEstMIGSDoS(E_vals, D_vals, G_vals, E_V, E_C):
 ####################################
 # SCHOTTKY BARRIER COMPUTATION
 ####################################
+
+
+# Compute an analytical estimate of the
+# Fermi-level pinning factor
+#
+# Inputs:
+# - D_vals: Density of states of X [eV^(-1) nm^(-2)]
+# - E_vals: Energy values corresponding to D_vals [eV]
+# - d     : Dipole 'bond' thickness [nm]
+# - eps   : Relative permittivity [unitless]
+# - E     : Energy at which to estimate pinning factor
+#
+# Outputs:
+# - S     : Estimated pinning factor at energy E
+def getEstPinFactor(D_vals, E_vals, d, eps, E):
+    
+    # Density of states [eV^(-1) nm^(-2)]
+    D = np.interp(E, E_vals, D_vals)
+    
+    # Compute the effect of DOS
+    EPS_NM = eps*EPS_0_NATURAL*1e-3 # [e^2 eV^(-1) nm^(-1)]
+    n = d*D/EPS_NM
+    
+    # Compute pinning factor
+    S = 1.0/(1.0+n)
+    return S
+    
+    
+# Returns the energy level of the Schottky barrier
+# for a semiconductor in contact with metal.
+#
+# In other words, returns CNL + dE, where dE is
+# the energy shift of the Fermi level of the 
+# semiconductor, relative to the CNL.
+#
+# Essentially, solves the equation
+#
+#   E_FM - CNL = dE + (d/eps) \int_{CNL}^{CNL+dE} dE' \rho_S(E').
+#
+# Inputs:
+# - D_vals: Density of states of the metal [eV^(-1) nm^(-2)]
+# - E_vals: Corresponding energy levels [eV]
+# - CNL   : Charge neutrality level of the semiconductor [eV]
+# - E_FM  : Fermi level of the metal [eV]
+# - d     : Dipole 'bond' thickness [nm]
+# - eps   : Relative permittivity [unitless]
+#
+# Outputs:
+# - E_Sch : Energy level of the Schottky barrier. 
+#           This is not the same as the Schottky barrier height.
+#           The n-,p-type Schottky barrier heights are E_C - E_Sch
+#           and E_Sch - E_V, respectively.
+def getSchottkyEnergy(D_vals, E_vals, CNL, E_FM, d, eps):
+    
+    # Compute \int_{CNL}^{CNL+E} dE' \rho_S(E') as a function of E
+    Q = scipy.integrate.cumulative_trapezoid(D_vals, x = E_vals, initial = 0)
+    Q = Q - np.interp(CNL, E_vals, Q)
+    
+    # Compute E + (d/eps) \int_{CNL}^{CNL+E} dE' \rho_S(E') as a function of E
+    EPS_NM = eps*EPS_0_NATURAL*1e-3 # [e^2 eV^(-1) nm^(-1)]
+    dE_tot = (E_vals - CNL) + d/EPS_NM * Q
+    
+    # Compute the energy at which dE_tot = E_FM - CNL
+    E_Sch = np.interp(E_FM-CNL, dE_tot, E_vals)
+    
+    return E_Sch
 
 
 ####################################
@@ -434,7 +502,5 @@ def getR_cf(RQ, gC, Rsh, Lc):
     Beta  = getBeta (gC , RQ)  # [um^(-1)]
     Lt    = getTransferLength(Alpha, Beta)  # [um]
     R     = RQ / (2*Beta*Lt)
-    print("Lt = " + str(1e3*Lt) + " [nm]")
     return R/np.tanh(Lc/Lt)
-
     

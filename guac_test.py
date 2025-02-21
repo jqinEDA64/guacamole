@@ -287,8 +287,8 @@ def test_SK_paper_MIGS():
     
     # Load CNT density of states from disk
     E_in, D_in = loadCNTDoSFromFile(11, 0)
-    D_in = D_in[np.abs(E_in) < 3]
-    E_in = E_in[np.abs(E_in) < 3]    
+    #D_in = D_in[np.abs(E_in) < 3]
+    #E_in = E_in[np.abs(E_in) < 3]    
     
     #print("Bandgap pts = " + str(0.8/getEnergyResolution(E_in)))
     
@@ -319,6 +319,35 @@ def test_SK_paper_MIGS():
     plt.ylabel("Energy [eV]")
     plt.show()
     
+    # Compute the Fermi-level pinning factors
+    d   = 0.2 # [nm]
+    eps = 8
+    D_1 = 1e-14*D_1
+    D_2 = 1e-14*D_2
+    D_3 = 1e-14*D_3
+    S_1 = getEstPinFactor(D_1, E_1, d, eps, 0)
+    S_2 = getEstPinFactor(D_2, E_2, d, eps, 0)
+    S_3 = getEstPinFactor(D_3, E_3, d, eps, 0)
+    print("S_1 = " + str(S_1))
+    print("S_2 = " + str(S_2))
+    print("S_3 = " + str(S_3))
+    
+    # Schottky barrier physics
+    E_FM = -1
+    D_in = 1e-14*D_in
+    CNL_1   = getCNL(D_in, E_in, 0, D_1, E_1)
+    E_Sch_1 = getSchottkyEnergy(D_1, E_1, CNL_1, E_FM, d, eps)
+    CNL_2   = getCNL(D_in, E_in, 0, D_2, E_2)
+    E_Sch_2 = getSchottkyEnergy(D_2, E_2, CNL_2, E_FM, d, eps)
+    CNL_3   = getCNL(D_in, E_in, 0, D_3, E_3)
+    E_Sch_3 = getSchottkyEnergy(D_3, E_3, CNL_3, E_FM, d, eps)
+    print("E_Sch_1 = " + str(E_Sch_1))
+    print("E_Sch_2 = " + str(E_Sch_2))
+    print("E_Sch_3 = " + str(E_Sch_3))
+    # NOTE: E_V = -0.45 eV.
+    
+    return
+    
     
 # Compare my analytical/numerical results with the
 # NEGF study here: 10.1109/LED.2022.3185991 
@@ -333,7 +362,7 @@ def test_SK_paper_RCLC():
     E_in, D_in = loadCNTDoSFromFile(11, 0)
     D_in  = doResample(D_in, E_in, 10)
     E_in  = doResample(E_in, E_in, 10)
-    GQ_in = np.asarray([1/6.45/2 if abs(E) > 0.46 else 0 for E in E_in])
+    GQ_in = np.asarray([1/6.45 if abs(E) > 0.46 else 0 for E in E_in])
     
     # Compute DOS and conductance/CNT per energy after spectral broadening
     GQ_1, E_1 = getNonUnifConv(GQ_in, E_in, G_1, kern_type = "Lorentzian")
@@ -375,6 +404,13 @@ def test_SK_paper_RCLC():
     Lc_2, Rc_2 = getRCLC(RQ_2, G_2, D_2, E_2)
     Lc_3, Rc_3 = getRCLC(RQ_3, G_3, D_3, E_3)
     
+    # Usually plot 2*RC (cf. Franklin paper, Solomon paper).
+    # Sheng-Kai plots the resistance of device = 2*RC
+    # since 2 contacts
+    Rc_1 = 2*Rc_1
+    Rc_2 = 2*Rc_2
+    Rc_3 = 2*Rc_3
+    
     plt.plot(Lc_1, Rc_1, label = "$\\Delta = 3.5$ meV", color = "red")
     plt.plot(Lc_2, Rc_2, label = "$\\Delta = 10$ meV" , color = "blue")
     plt.plot(Lc_3, Rc_3, label = "$\\Delta = 0.3$ eV" , color = "green")
@@ -384,25 +420,7 @@ def test_SK_paper_RCLC():
     plt.xscale("log")
     plt.show()
     
-    # Also compute transfer length TODO
-    
-    '''
-    # Compute specific contact conductivity
-    gC = getGC(G, D_out, E_out, E_F, kT)
-    
-    # Compute Rc for various contact lengths Lc
-    Rsh = 0  # Ballistic transport in CNT
-    Lc_vals = np.logspace(0, 2, 50)  # from 10^0 to 10^2
-    
-    Rc_vals = getR_cf(RQ, gC, Rsh, Lc_vals*1e-3)
-    Rc_vals = Rc_vals / (np.pi*d_CNT_um)  # Normalize to 1 CNT
-    
-    plt.plot(Lc_vals, Rc_vals*1e-3)
-    plt.xlabel("Contact length [nm]")
-    plt.ylabel("Contact resistance [k$\\Omega$ per CNT]")
-    plt.xscale("log")
-    plt.show()
-    '''
+    return
     
 
 #################################
@@ -426,6 +444,6 @@ def test_SK_paper_RCLC():
 #test_ballistic_speed()
 
 #test_SK_paper_MIGS()
-
 test_SK_paper_RCLC()
+
 

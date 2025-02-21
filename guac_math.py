@@ -114,11 +114,11 @@ def getEnergyResolution(E_vals):
 def __getLorentzianWidth(Gamma, dE):
     if dE > getMinResolution(Gamma) :
         err_out("Insufficient resolution for Lorentzian kernel")
-    return (int)(33*Gamma/dE)
+    #return (int)(33*Gamma/dE)
     # TODO jqin: need enough "spread" to cover the whole bandgap!
     #            Need to also specify a minimum "Delta E" which must
     #            be covered...
-    #return 12040
+    return 12040
 
 
 # Returns the half-size of the

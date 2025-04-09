@@ -62,6 +62,7 @@ def getThermalExpectation(X_vals, E_vals, kT, E_F, D_vals = None) :
     FD_der_vals = getFD_Derivative()
     
     # Add density of states weighting, if desired
+    DX_vals = None
     if D_vals is not None :
         DX_vals = np.multiply(X_vals, D_vals)
     else :
@@ -152,26 +153,56 @@ def getThermalVelocity(kT, M) :
     return getBallisticSpeed(kT, -10, 0, M, M, dim = 1)
 
 
-# In 1D only: Use van Hove singularity to estimate
-# the effective mass of carriers in a band.
+# Use 'mode conservation' to estimate the effective
+# number of modes and density of states of electrons
+# which can actually cross over the X-S barrier.
+#
+# This is inspired by Gautam Shine's thesis. 
+#
+# If M_X(E) and M_S(E) are the number of transport
+# modes per energy at energy E, then we set
+#
+# M(E) = min(M_X, M_S)(E) (similar to current conservation)
+#
+# D(E) = D_X(E)*(M/M_X)(E) (effective density of states).
 #
 # Inputs:
-# - D_vals: Density of states [eV^(-1) m^(-1)]
-# - E_vals: Energy values     [eV]
-# - E_s   : Location of van Hove singularity [eV]
-# - above : Is the band located above or below E_s?
+# - M_X_vals: Number of modes per energy in the X-region
+# - D_X_vals: Density of states in the X-region
+# - E_X_vals: Energies corresponding to {M,D}_X_vals
+# - M_S_vals: Number of modes per energy in the S-region
+# - D_S_vals: Density of states in the S-region
+# - E_S_vals: Energies corresponding to {M,D}_S_vals
 #
-# Output:
-# - me    : Effective mass [me]
-def get1DEffMass(D_vals, E_vals, E_s, above = True):
+# Outputs:
+# - M_vals  : Modes per energy across the interface
+# - D_vals  : Density of states in the X-region, but only for
+#             carriers which can cross over the interface
+# - E_vals  : Corresponding energies
+def getInterfaceModesAndDOS(M_X_vals, D_X_vals, E_X_vals, \
+                            M_S_vals, D_S_vals, E_S_vals) :
     
-    # D_1D(E) = 1/h * sqrt(2m/E)
-    # Thus, slope of (D_1D(E))^(-2) vs. E is h^2/2m.
-    y_vals = np.power(D_vals, -2)
+    #return M_S_vals, D_S_vals, E_S_vals
     
-    # TODO
+    # TODO jqin: don't need the rest of this
+    #            since Lorentzian broadening is 'automatic'
+    #            and should not be considered misalignment.
+    #
+    #            Should really consider misalignment between
+    #            broadened version of M_S(E) and M_X(E).
     
-    return 0
+    # Compute M(E) = min(M_X, M_S)(E)
+    M_vals, E_vals = getMinFunction(M_X_vals, E_X_vals, M_S_vals, E_S_vals)
+    
+    # Compute the values of M_X_vals at the new E_vals
+    M_X_2 = doResample(M_X_vals, E_X_vals, E_vals, interp_type = "linear")
+    
+    # Compute D(E) = D_X(E)*(M/M_X)(E)
+    D_X_2 = doResample(D_X_vals, E_X_vals, E_vals, interp_type = "linear")
+    M_X_2 = np.divide(M_vals, M_X_2)
+    D_vals= np.multiply(D_X_2, M_X_2)
+    
+    return M_vals, D_vals, E_vals
     
 
 ####################################
@@ -417,7 +448,8 @@ def getRQ(vX_vals, D_vals, E_vals, E_F, kT):
 def getRQfromModes(M_vals, E_vals, E_F, kT):
     
     # Compute quantum conductance
-    G_Q = 0.5*ELECTRON_CHARGE*getThermalExpectation(M_vals, E_vals, kT, E_F, D_vals = None)
+    G_Q = getThermalExpectation(M_vals, E_vals, kT, E_F, D_vals = None)
+    G_Q = 2*ELECTRON_CHARGE**2/PLANCK_CONSTANT*G_Q 
     
     # Return quantum resistance
     return 1.0/G_Q
@@ -448,7 +480,7 @@ def getGC(G_vals, D_vals, E_vals, E_F, kT):
     D_in = D_vals*1e6  # Convert D  from [eV^(-1) nm^(-2)] to [eV^(-1) um^(-2)]
     
     # Return specific conductivity
-    return ELECTRON_CHARGE*getThermalExpectation(G_in, E_vals, kT, E_F, D_vals = D_in)
+    return 0.5*ELECTRON_CHARGE*getThermalExpectation(G_in, E_vals, kT, E_F, D_vals = D_in)
     
 
 # Compute the "alpha" parameter of Solomon's R_cf model.

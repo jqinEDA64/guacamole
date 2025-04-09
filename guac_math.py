@@ -25,7 +25,7 @@ FLOAT_MAX = 1e30
 # domain.
 #
 # Must be reset to "False" after overriding.
-OVERRIDE_ENERGY_RESOLUTION_CHECK = False
+OVERRIDE_ENERGY_RESOLUTION_CHECK = True
 
 
 ####################################
@@ -118,7 +118,7 @@ def __getLorentzianWidth(Gamma, dE):
     # TODO jqin: need enough "spread" to cover the whole bandgap!
     #            Need to also specify a minimum "Delta E" which must
     #            be covered...
-    return 12040
+    return 10000
 
 
 # Returns the half-size of the
@@ -392,6 +392,38 @@ def getNonUnifMap(X_in, D_in, E_in, arr_param, kern_type = "Lorentzian"):
     return X_out, E_out
 
 
+# Given two functions f1(E) and f2(E),
+# returns f(E) = min(f1(E), f2(E)).
+# 
+# Only returns f(E) in the region of E
+# where both f1(E) and f2(E) are known.
+#
+# Inputs:
+# - f1_vals: f1(E) values
+# - f2_vals: f2(E) values
+# - E1_vals: Energy values for f1.
+# - E2_vals: Energy values for f2. Does not
+#            necessarily have to match E1_vals.
+#
+# Output:
+# - f_vals: min(f1, f2) for all E in E_vals.
+# - E_vals: Values of energy [eV]
+def getMinFunction(f1_vals, E1_vals, f2_vals, E2_vals):
+    
+    # Compute E_vals
+    dE     = min(getEnergyResolution(E1_vals), getEnergyResolution(E2_vals))
+    E_min  = max(np.min(E1_vals), np.min(E2_vals))
+    E_max  = min(np.max(E1_vals), np.max(E2_vals))
+    E_vals = np.arange(E_min, E_max, dE)
+    
+    # Compute both values and return minimum
+    f1_interp_vals = doResample(f1_vals, E1_vals, E_vals, interp_type = "linear")
+    f2_interp_vals = doResample(f2_vals, E2_vals, E_vals, interp_type = "linear")
+    fm_interp_vals = np.minimum(f1_interp_vals, f2_interp_vals)
+    
+    return fm_interp_vals, E_vals
+
+
 ####################################
 # FILE I/O
 ####################################
@@ -500,7 +532,7 @@ def loadCNTDoSFromFile(a1, a2):
     OVERRIDE_ENERGY_RESOLUTION_CHECK = False  # Restore default setting
     
     # Estimate CNT diameter (see raw_data/README)
-    d_CNT = 0.8 # [nm]
+    d_CNT = 1.0 # [nm]
     
     # Convert D_vals from [eV^(-1) m^(-1)] to [eV^(-1) nm^(-2)]
     D_vals = (1e-9 / (np.pi*d_CNT)) * D_vals

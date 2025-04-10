@@ -655,9 +655,8 @@ def test_MoS2() :
 
 #test_ballistic_speed()
 
-test_SK_paper_MIGS()
+#test_SK_paper_MIGS()
 #test_SK_paper_RCLC()
 
 #test_RQ()
 #test_MoS2()
-

@@ -389,8 +389,6 @@ def getSchottkyEnergy(D_vals, E_vals, CNL, E_FM, d, eps):
     # Compute E + (d/eps) \int_{CNL}^{CNL+E} dE' \rho_S(E') as a function of E
     EPS_NM = eps*EPS_0_NATURAL*1e-3 # [e^2 eV^(-1) nm^(-1)]
     dE_tot = (E_vals - CNL) + d/EPS_NM * Q
-
-    print("Schottky charge = " + str(EPS_NM/d*(CNL-E_FM)))
     
     # Compute the energy at which dE_tot = E_FM - CNL
     E_Sch = np.interp(E_FM-CNL, dE_tot, E_vals)

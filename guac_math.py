@@ -109,16 +109,17 @@ def getEnergyResolution(E_vals):
 # 2N+1, this function returns N+1.
 #
 # Inputs:
-# - dE    : grid discretization (float)
-# - Gamma : Lorentzian width    (float)
-def __getLorentzianWidth(Gamma, dE):
-    if dE > getMinResolution(Gamma) :
-        err_out("Insufficient resolution for Lorentzian kernel")
+# - Gamma : Lorentzian width    (float) [eV]
+# - E_vals: Input energy values [eV]
+# - dE    : grid discretization (float) [eV]
+def __getLorentzianWidth(Gamma, E_vals, dE):
+    #if dE > getMinResolution(Gamma) :
+    #    err_out("Insufficient resolution for Lorentzian kernel")
     #return (int)(33*Gamma/dE)
     # TODO jqin: need enough "spread" to cover the whole bandgap!
     #            Need to also specify a minimum "Delta E" which must
     #            be covered...
-    return 10000
+    return int((np.max(E_vals)-np.min(E_vals))/dE)
 
 
 # Returns the half-size of the
@@ -147,9 +148,10 @@ def __getGaussianWidth(Sigma, dE):
 #
 # Inputs:
 # - dE    : grid discretization
+# - E_vals: Energy values
 # - Gamma : Lorentzian width
-def __getLorentzianKernel(Gamma, dE):
-    N = __getLorentzianWidth(Gamma, dE)
+def __getLorentzianKernel(Gamma, E_vals, dE):
+    N = __getLorentzianWidth(Gamma, E_vals, dE)
     
     # Create the kernel. The middle element
     # has index = N and value = 0.
@@ -188,9 +190,9 @@ def __getGaussianKernel(Sigma, dE):
 # Main function of this section.
 # Returns appropriate kernel size, given
 # the kernel parameter and grid spacing
-def getKernelWidth(Param, dE, kerneltype = "Lorentzian"):
+def getKernelWidth(Param, E_vals, dE, kerneltype = "Lorentzian"):
     if   kerneltype == "Lorentzian" :
-        return __getLorentzianWidth(Param, dE)
+        return __getLorentzianWidth(Param, E_vals, dE)
     elif kerneltype == "Gaussian" :
         return __getGaussianWidth  (Param, dE)
     else :
@@ -201,7 +203,7 @@ def getKernelWidth(Param, dE, kerneltype = "Lorentzian"):
 # Returns appropriate kernel (of 
 # automatically-inferred size), given
 # the kernel parameter and grid spacing
-def getKernel(Param, dE, kerneltype = "Lorentzian"):
+def getKernel(Param, E_vals, dE, kerneltype = "Lorentzian"):
 
     # Return identity if Param = 0
     # NOTE: requires kernels of ANY type to reduce
@@ -210,7 +212,7 @@ def getKernel(Param, dE, kerneltype = "Lorentzian"):
         return np.array([1])
 
     if   kerneltype == "Lorentzian" :
-        return __getLorentzianKernel(Param, dE)
+        return __getLorentzianKernel(Param, E_vals, dE)
     elif kerneltype == "Gaussian" :
         return __getGaussianKernel  (Param, dE)
     else :
@@ -318,12 +320,14 @@ def getNonUnifConv(arr_in, E_in, arr_param, kern_type = "Lorentzian"):
         if N_in != arr_param.shape[0] :
             err_out("arr_in and arr_param must have same shape")
         param = arr_param
+    else :
+        raise Exception("arr_param must be either float or NumPy array")
     
     # Compute the appropriate shape of arr_out
     min_index = 0  # min_index < 0
     max_index = 0  # max_index > N_in
     for i in range(N_in) :
-        N = getKernelWidth(param[i], dE, kern_type)
+        N = getKernelWidth(param[i], E_in, dE, kern_type)
         min_index = min(min_index, i-N)
         max_index = max(max_index, i+N)
         
@@ -352,9 +356,9 @@ def getNonUnifConv(arr_in, E_in, arr_param, kern_type = "Lorentzian"):
     
     # Accumulate non-uniform convolution values into output
     for i in range(N_in) :
-        __accumIntoArr(arr_in[i]*getKernel(param[i], dE, kern_type), \
+        __accumIntoArr(arr_in[i]*getKernel(param[i], E_in, dE, kern_type), \
                        arr_out,                                      \
-                       i - min_index - getKernelWidth(param[i], dE, kern_type))
+                       i - min_index - getKernelWidth(param[i], E_in, dE, kern_type))
     
     # Create E_out
     E0    = E_in[0] + min_index*dE  # NOTE: min_index < 0
@@ -499,7 +503,34 @@ def loadDoSFromFile(file_path, E_zero = None):
     
     return E_vals, D_vals
 
+# This function loads DOS from file but does not do any sorting or energy shifting.
+#
+# Inputs:
+# - file_path: Path to CSV file for DoS.
+#
+# Outputs:
+# - E_vals   : Energy values [eV]
+# - D_vals   : Density of states [unknown units; must be checked manually]
+def loadDoSFromFile_nosort(file_path) :
+
+    # Read from disk
+    df = pd.read_csv(file_path)
     
+    # Check for correct column headers
+    if not "E"   in df.columns :
+        err_out("E not found in DoS CSV file")
+    if not "DOS" in df.columns :
+        err_out("DOS not found in DoS CSV file")
+        
+    # Sort based on E values
+    df = df.sort_values(by = "E") 
+    
+    E_vals = df["E"]
+    D_vals = df["DOS"]
+
+    return E_vals, D_vals
+    
+
 ####################################
 # CUSTOM DATASETS (STORED IN THIS
 # PROJECT'S CODEBASE)

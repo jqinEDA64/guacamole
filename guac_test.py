@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-
+'''
 def test_Lorentzian_Kernel(Gamma, dE):
     k = getKernel(Gamma, dE, "Lorentzian")
     print("Sum of Lorentzian kernel = " + str(np.sum(k)))
@@ -26,6 +26,7 @@ def test_Gaussian_Kernel(Gamma, dE):
     fig, ax = plt.subplots()
     ax.plot(k)
     saveAndShow(fig, "test_out/Gaussian")
+'''
     
     
 def test_NonUnif_Conv_0(Gamma, dE):

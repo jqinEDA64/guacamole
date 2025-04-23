@@ -15,7 +15,9 @@ import math
 # - k_steps: Number of discretization points in k-space
 # 
 # Outputs:
-# - k_steps:  Number of values of the momentum vector
+# - k_vals:  Wavevector values [nm^(-1)]
+# - E_p   :  Positive-energy (n-type) energy values
+# - E_n   :  Negative-energy (p-type) energy values
 def getCNT_bandstructure(n, m, gamma, k_steps) :
     a_1 = np.array([0.5, np.sqrt(3)/2])
     a_2 = np.array([-0.5, np.sqrt(3)/2])
@@ -49,7 +51,36 @@ def getCNT_bandstructure(n, m, gamma, k_steps) :
         E_p[l_1, :] =  val
         E_n[l_1, :] = -val
     
-    return np.linspace(-1, 1, k_steps), E_p, E_n
+    return (1.0/0.246)*l_2, E_p, E_n
+
+
+# Returns the effective mass of the CNT.
+# See https://doi.org/10.1109/ICICDT.2007.4299580 
+#
+# m = \hbar^2 / (d^2E / dk^2)
+#
+# Inputs:
+# - n:       First  chiral number
+# - m:       Second chiral number
+# - gamma:   Nearest-neighbor hopping energy
+# 
+# Outputs:
+# - m:       CNT effective mass (in units of m_e)
+def getCNT_effectivemass(n, m, gamma) :
+
+    k_steps = int(1e5)
+    k_vals, E_p, E_n = getCNT_bandstructure(n, m, gamma, k_steps)
+
+    hbar = 6.58e-16             # Reduced Planck constant [eV s]
+    dk   = k_vals[1]-k_vals[0]  # Wavevector spacing [nm^(-1)]
+
+    E_p    = E_p.flatten()
+    i      = np.argmin(E_p)
+    d2E_dk2= (E_p[i-1]+E_p[i+1]-2*E_p[i])/(dk*dk)  # [eV m^2]
+    m      = hbar*hbar/d2E_dk2  # Effective mass [eV s^2 m^(-2)]
+    m      = 1.6e-19/9.11e-31*m # Effective mass [m_e]
+
+    return m
 
 # Get bandgap of the CNT, given the bandstructure
 #
@@ -94,7 +125,7 @@ def plotE_k(k_vals, E_p, E_n, n, m):
     plt.show()
 
 
-# Return the density of states.
+# Return the density of states. See Deji Akinwande and Philip Wong's CNT book.
 #
 # Inputs:
 # - n : First  chiral number.
@@ -103,8 +134,28 @@ def plotE_k(k_vals, E_p, E_n, n, m):
 # - dE: Desired energy spacing for the density of states
 #
 # Outputs:
-# - E : Energy values for the CNT density of states
-# - D : Density of states for the CNT density of states [eV^(-1) m^(-1)]
+# - E : Energy values for the CNT density of states [eV]
+# - D : Density of states for the CNT density of states [eV^(-1) nm^(-1)]
+def getCNT_DOS(n, m, t) :
+
+    k_steps = int(1e5)
+    Hist_steps = int(k_steps/50)
+    k_vals, E_p, E_n = getCNT_bandstructure(n, m, t, k_steps)
+    dk = k_vals[1] - k_vals[0]
+
+    data = E_p.flatten()
+    data = np.append(data, E_n.flatten())
+    
+    D, bin_edges = np.histogram(data, bins=Hist_steps)
+    dE   = bin_edges[1]-bin_edges[0]
+    E    = bin_edges[0:Hist_steps] + dE*0.5
+
+    # Factor of 2   for spin degeneracy
+    # Factor of 2Pi for phase space volume correction
+    D    = 2 / (2*np.pi) * D * dk / dE
+
+    return E, D
+'''
 def getCNT_DOS(n, m, t) :
 
     k_steps = int(1e5)
@@ -120,6 +171,8 @@ def getCNT_DOS(n, m, t) :
     D    = 2.46e10 * D * dE
 
     return E, D
+'''
+
 
 # Plot density of states
 '''

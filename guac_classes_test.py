@@ -14,14 +14,22 @@ import copy
 from guac_classes  import *
 
 # Verifies the correctness of DoS generation in CNT class. 
-def test_DoS() :
-    test_cnt = CNT_Contact(13, 0, 2.74)
-    plt.plot(test_cnt.E0, test_cnt.D0)
+def test_DoS(n, m, t, G) :
+    test_cnt = CNT_Contact(n, m, t)
+    test_cnt.setInteraction(G)
+    d        = test_cnt.diameter
+    plt.plot(test_cnt.E0, test_cnt.D0*1e14, label = "$\\Gamma = $0", color = "black")
+    plt.plot(test_cnt.E1, test_cnt.D1*1e14, label = "$\\Gamma = $" + str(G), color = "green")
+    plt.xlim(-test_cnt.Eg, test_cnt.Eg)
+    plt.ylim(1e12,1e15)
+    plt.yscale("log")
+    plt.legend()
+    plt.xlabel("Energy [eV]")
+    plt.ylabel("Density of states [eV$^{-1}$ cm$^{-2}$]")
     plt.savefig("test_out/test_DoS", dpi=500)
-    print("Diameter of (13, 0) CNT = " + str(test_cnt.d) + " [nm]")
+    print("Diameter of (" + str(n) + ", " + str(m) + ") CNT = " + str(d) + " [nm]")
     print("Ec = " + str(test_cnt.Ec) + ", Ev = " + str(test_cnt.Ev) + ", Eg = " + str(test_cnt.Eg))
-    print("Max value of DoS = " + str(np.max(test_cnt.D0)))
-
+    #print("Max value of DoS = " + str(np.max(test_cnt.D0)))
 
 # Test the correctness of computed CNT density of states. There are two tests here:
 # (1) Confirm that the E = 0 DOS of (10, 10) and (12, 12) metallic CNT is about 2 eV^(-1) nm^(-1) [see Deji's book, section 5.3]
@@ -82,21 +90,27 @@ def test_CNT_RQ() :
     print("Ec = " + str(test_cnt.Ec) + ", Ev = " + str(test_cnt.Ev) + ", Eg = " + str(test_cnt.Eg))
 
 # Plots Rc vs Lc and prints Lt.
-def test_CNT_Lc() :
+def test_CNT_Lc(n, m, t, WM, G) :
 
     # Create metal-CNT contact
-    test_cnt = CNT_Contact(13, 0, 3.0)
+    test_cnt = CNT_Contact(n, m, t)
 
     # Set important parameters
-    test_cnt.WM = 7   # Workfunction of the metal [eV]
-    test_cnt.XS = 4.0   # Electron affinity of the semiconductor [eV]
+    test_cnt.WM =  WM  # Workfunction of the metal [eV]
 
     # Set the interaction strength, which triggers the 
     # computation of many other things
-    test_cnt.setInteraction(0.01)
+    test_cnt.setInteraction(G)
 
-    print("Lt = " + str(test_cnt.getLt()))
-    print("Barrier height = " + str(test_cnt.getSchottkyBarrier_p()))
+    print("-------------------------")
+    print("CNT transfer length test: ")
+    print("-------------------------")
+    print("  WM = " + str(WM) + " [eV]")
+    print("  G  = " + str(G) + " [eV]")
+    print("  Lt = " + str(round(test_cnt.getLt(),2)) + " [nm]")
+    print("  Barrier height = " + str(round(test_cnt.getSchottkyBarrier_p(),2)) + " [eV]")
+    print("  RQ = " + str(round(test_cnt.RQ/np.pi/test_cnt.diameter/1e3,2)) + " [kOhm per CNT]")
+    print("  RC(Lc = inf) = " + str(round(test_cnt.getRC_perCNT(1e5)/1e3, 2)) + " [kOhm per CNT]")
 
     # Plot and print results
     Lc_vals = np.logspace(0, 2, 50)
@@ -369,9 +383,46 @@ def test_MoS2_Semimetal() :
     plt.savefig("test_out/MoS2_semimetal_barrierheights_2", dpi = 500)
 
 
-#test_DoS()
+# Test of CNT doping.
+def test_CNT_Doping(n, m, t, WM, G, Ld) :
+
+    # Create metal-CNT contact
+    test_cnt = CNT_Contact(n, m, t)
+    test_cnt.Ld = Ld
+
+    # Set important parameters
+    test_cnt.WM =  WM  # Workfunction of the metal [eV]
+
+    # Set the interaction strength, which triggers the 
+    # computation of many other things
+    test_cnt.setInteraction(G)
+
+    print("-------------------------")
+    print("CNT transfer length test: ")
+    print("-------------------------")
+    print("  WM = " + str(WM) + " [eV]")
+    print("  G  = " + str(G) + " [eV]")
+    print("  Lt = " + str(round(test_cnt.getLt(),2)) + " [nm]")
+    print("  Barrier height = " + str(round(test_cnt.getSchottkyBarrier_p(),2)) + " [eV]")
+    print("  RQ = " + str(round(test_cnt.RQ/np.pi/test_cnt.diameter/1e3,2)) + " [kOhm per CNT]")
+    print("  RC(Lc = inf) = " + str(round(test_cnt.getRC_perCNT(1e5)/1e3, 2)) + " [kOhm per CNT]")
+
+    return 
+
+    # Plot and print results
+    Lc_vals = np.logspace(0, 2, 50)
+    Rc_vals = 1e-3*np.array([test_cnt.getRC_perCNT(Lc) for Lc in Lc_vals])
+
+    plt.plot(Lc_vals, Rc_vals)
+    plt.xlabel("Contact length [nm]")
+    plt.ylabel("Contact resistance [k$\\Omega$ per CNT]")
+    plt.title("Contact resistance as a function of length")
+    plt.xscale("log")
+    plt.savefig("test_out/Rc_Lc", dpi = 500)
+
+#test_DoS(13, 0, 3.2, 0.3)
 #test_CNT_RQ()
-#test_CNT_Lc()
+#test_CNT_Lc(16, 0, 3.22, 5.5, 0.01)
 #test_Rc_Eg()
 #test_CNT_Extra()
 #test_DOS_correctness()
@@ -381,4 +432,6 @@ def test_MoS2_Semimetal() :
 #test_MoS2_FLP_1()
 #test_MoS2_FLP_2()
 
-test_MoS2_Semimetal()
+#test_MoS2_Semimetal()
+
+test_CNT_Doping(13, 0, 3, 5.5, 0.01, 4)

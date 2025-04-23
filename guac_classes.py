@@ -151,8 +151,6 @@ class Contact :
     def getLt(self) :
         alpha = getAlpha(self.Rsh    , 1e-3*self.RQ)
         beta  = getBeta (1e6*self.gC , 1e-3*self.RQ)
-        print("gC = " + str(self.gC))
-        print("RQ = " + str(self.RQ))
         return 1e3*getTransferLength(alpha, beta)
 
     #############################
@@ -328,7 +326,7 @@ class CNT_Contact(Contact) :
     def _getModes(self, E_vals) :
 
         # Number of transport modes per energy of S
-        M0  = np.asarray([4 if D > 0 else 0 for D in self.D0])
+        M0  = np.asarray([2 if D > 0 else 0 for D in self.D0])
 
         # Resample to the input energies
         return doResample(M0, self.E0, E_vals, "linear")
@@ -357,12 +355,7 @@ class TMD_Contact(Contact) :
     #########################################
 
     def _compDoS(self, dE) :
-        self.E0, self.D0 = getCNT_DOS(self.n, self.m, self.t)  # [ev^(-1) nm^(-1)]
-        f = getEnergyResolution(self.E0) / dE + 0.1
-        self.D0 = doResample(self.D0, self.E0, f, "linear")
-        self.E0 = doResample(self.E0, self.E0, f, "linear")
-        self.D0 = (1e0 / (np.pi*self.diameter)) * self.D0      # [ev^(-1) nm^(-2)]
-        return self.E0, self.D0
+        raise Exception("_compDoS not implemented for TMD_Contact class")
     
     # Sets the quantum resistance self.RQ in [Ohm.nm]
     def _compRQ(self) :

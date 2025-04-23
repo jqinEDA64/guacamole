@@ -22,7 +22,7 @@ from guac_math import *
 
 ELECTRON_MASS   = 9.11e-31  # [kg]
 ELECTRON_CHARGE = 1.6e-19   # [C ]
-PLANCK_CONSTANT = 6.626e-34 # [J / Hz]
+PLANCK_CONSTANT = 6.626e-34 # [J s]
 RED_PLANCK_CONSTANT = PLANCK_CONSTANT/(2*np.pi)  # [J*s]
 EPS_0_SI        = 8.85e-12  # [F / m]
 EPS_0_NATURAL   = 55.3      # [e^2 eV^(-1) um^(-1)]
@@ -450,7 +450,7 @@ def getRQfromModes(M_vals, E_vals, E_F, kT):
     # Compute quantum conductance
     G_Q = getThermalExpectation(M_vals, E_vals, kT, E_F, D_vals = None)
     G_Q = 2*ELECTRON_CHARGE**2/PLANCK_CONSTANT*G_Q 
-    
+
     # Return quantum resistance
     return 1.0/G_Q
 
@@ -469,18 +469,16 @@ def getRQfromModes(M_vals, E_vals, E_F, kT):
 # - Specific contact conductivity [Ohm^(-1) um^(-2)]
 def getGC(G_vals, D_vals, E_vals, E_F, kT):
     
-    # Convert broadening from energy [eV] to hopping rate [s^(-1)]
     G_in = None
     if   isinstance(G_vals, (int, float)):
         G_in = G_vals*np.ones(D_vals.shape[0])
     elif isinstance(G_vals, np.ndarray):
         G_in = G_vals
-    G_in = G_vals * ELECTRON_CHARGE / PLANCK_CONSTANT
     
     D_in = D_vals*1e6  # Convert D  from [eV^(-1) nm^(-2)] to [eV^(-1) um^(-2)]
     
-    # Return specific conductivity
-    return 0.5*ELECTRON_CHARGE*getThermalExpectation(G_in, E_vals, kT, E_F, D_vals = D_in)
+    # Return specific conductivity 
+    return 0.5*ELECTRON_CHARGE**2/PLANCK_CONSTANT*getThermalExpectation(G_in, E_vals, kT, E_F, D_vals = D_in)
     
 
 # Compute the "alpha" parameter of Solomon's R_cf model.
@@ -521,7 +519,8 @@ def getTransferLength(Alpha, Beta):
     
     
 # Compute R_cf, the distributed part of contact resistance,
-# from Solomon's model.
+# from Solomon's model. This is the classical thermionic
+# resistance.
 #
 # Inputs:
 # - RQ : Quantum resistance [Ohm*um]
@@ -529,6 +528,9 @@ def getTransferLength(Alpha, Beta):
 # - Rsh: Sheet resistance   [Ohm/sq]
 # - Lc : Contact length     [um].
 #        Contact length may be either float or array.
+#
+# Output:
+# - Rcf: Thermionic contribution to contact resistance [Ohm um]
 def getR_cf(RQ, gC, Rsh, Lc):
     Alpha = getAlpha(Rsh, RQ)  # [um^(-1)]
     Beta  = getBeta (gC , RQ)  # [um^(-1)]
@@ -536,3 +538,55 @@ def getR_cf(RQ, gC, Rsh, Lc):
     R     = RQ / (2*Beta*Lt)
     return R/np.tanh(Lc/Lt)
     
+
+# Compute R_th_extra, the "extra" contribution to
+# thermionic resistance when the semiconductor is highly
+# doped.
+#
+# Input:
+# - G_vals: hopping rate [eV] (may be scalar or NumPy array)
+# - M_vals: Modes per energy [??] (units depend on dimension of semiconductor) 
+# - E_vals: Energy values [eV]
+# - E_F   : Fermi energy of material X (semiconductor-under-metal) [eV]
+# - E_C   : Energy of the conduction band minimum [eV]
+# - E_V   : Energy of the valence    band maximum [eV]
+# - Lsc   : Electrostatic scale length of the contact [nm]
+# - Ld    : 'Effective' depletion length of the contact [nm]
+# - m_C   : Effective mass (conduction band) [me]
+# - m_V   : Effective mass (valence band)    [me]
+# - kT    : Thermal voltage [eV]
+# - isN   : Is semiconductor in depletion region N-type?
+#
+# Output:
+# - R_th_extra : 'Extra' thermionic contribution to the contact resistance.
+#                [??] (Units depend on units of M_vals)
+def getR_th_extra(G_vals, M_vals, E_vals, \
+                  E_F, E_C, E_V, \
+                  Lsc, Ld, m, kT, isN = True) :
+
+    E_FS = E_C if isN else E_V        # E_F in semiconductor (outside contact)
+    Phi_B= np.abs(E_FS - E_F)         # Full  Schottky barrier height
+    phi_B= Phi_B * Ld/(Ld+Lsc/np.pi)  # Local Schottky barrier height
+
+    # Energy level of local barrier height
+    E_B_L= E_C + phi_B if isN else E_V - phi_B
+
+    # Difference between band energy and local barrier height
+    # This is equivalent to E-E_C-phi_B in my notes.
+    E_diff_vals = (E_vals - E_B_L)*(1 if isN else -1)
+
+    # Restrict integral to energy range "between" barriers
+    E_diff_vals[E_diff_vals < 0          ] = 0
+    E_diff_vals[E_diff_vals > Phi_B-phi_B] = 0
+
+    # Compute the probability that electron will be absorbed
+    # into the metal
+    P_vals = np.sqrt(8)/np.pi * Lsc/(Phi_B-phi_B) * np.sqrt(m) / PLANCK_CONSTANT
+    P_vals = P_vals*G_vals
+    P_vals = np.multiply(P_vals, np.sqrt(E_diff_vals))
+    P_vals = 1e-9 * np.sqrt(ELECTRON_MASS * ELECTRON_CHARGE)  # Unit conversions
+
+    M_extra_vals = np.multiply(M_vals, P_vals)
+    R_th_extra = getRQfromModes(M_extra_vals, E_vals, E_FS, kT)
+
+    return R_th_extra

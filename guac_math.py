@@ -113,12 +113,6 @@ def getEnergyResolution(E_vals):
 # - E_vals: Input energy values [eV]
 # - dE    : grid discretization (float) [eV]
 def __getLorentzianWidth(Gamma, E_vals, dE):
-    #if dE > getMinResolution(Gamma) :
-    #    err_out("Insufficient resolution for Lorentzian kernel")
-    #return (int)(33*Gamma/dE)
-    # TODO jqin: need enough "spread" to cover the whole bandgap!
-    #            Need to also specify a minimum "Delta E" which must
-    #            be covered...
     return int((np.max(E_vals)-np.min(E_vals))/dE)
 
 
@@ -160,6 +154,10 @@ def __getLorentzianKernel(Gamma, E_vals, dE):
     
     scale = dE/Gamma
     out = scipy.stats.cauchy.pdf(out*scale)
+
+    # TODO jqin: Replace this PDF-based computation
+    #            with more accurate CDF computation
+
     return out / np.sum(out)  # Normalize
     
     

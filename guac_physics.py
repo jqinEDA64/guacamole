@@ -478,7 +478,8 @@ def getGC(G_vals, D_vals, E_vals, E_F, kT):
     D_in = D_vals*1e6  # Convert D  from [eV^(-1) nm^(-2)] to [eV^(-1) um^(-2)]
     
     # Return specific conductivity 
-    return 0.5*ELECTRON_CHARGE**2/PLANCK_CONSTANT*getThermalExpectation(G_in, E_vals, kT, E_F, D_vals = D_in)
+    #return 0.5*ELECTRON_CHARGE**2/PLANCK_CONSTANT*getThermalExpectation(G_in, E_vals, kT, E_F, D_vals = D_in)
+    return np.pi*ELECTRON_CHARGE**2/PLANCK_CONSTANT*getThermalExpectation(G_in, E_vals, kT, E_F, D_vals = D_in)
     
 
 # Compute the "alpha" parameter of Solomon's R_cf model.
@@ -584,7 +585,7 @@ def getR_th_extra(G_vals, M_vals, E_vals, \
     P_vals = np.sqrt(8)/np.pi * Lsc/(Phi_B-phi_B) * np.sqrt(m) / PLANCK_CONSTANT
     P_vals = P_vals*G_vals
     P_vals = np.multiply(P_vals, np.sqrt(E_diff_vals))
-    P_vals = 1e-9 * np.sqrt(ELECTRON_MASS * ELECTRON_CHARGE)  # Unit conversions
+    P_vals = 1e-9 * np.sqrt(ELECTRON_MASS * ELECTRON_CHARGE) * P_vals  # Unit conversions
 
     M_extra_vals = np.multiply(M_vals, P_vals)
     R_th_extra = getRQfromModes(M_extra_vals, E_vals, E_FS, kT)

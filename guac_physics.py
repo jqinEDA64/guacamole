@@ -544,7 +544,7 @@ def getR_cf(RQ, gC, Rsh, Lc):
     Lt    = getTransferLength(Alpha, Beta)  # [um]
     R     = RQ / (2*Beta*Lt)
     return R/np.tanh(Lc/Lt)
-    
+
 
 # Compute R_th_extra, the "extra" contribution to
 # thermionic resistance when the semiconductor is highly
@@ -563,41 +563,105 @@ def getR_cf(RQ, gC, Rsh, Lc):
 # - m_C   : Effective mass (conduction band) [me]
 # - m_V   : Effective mass (valence band)    [me]
 # - kT    : Thermal voltage [eV]
-# - isN   : Is semiconductor in depletion region N-type?
 #
 # Output:
 # - R_th_extra : 'Extra' thermionic contribution to the contact resistance.
 #                [??] (Units depend on units of M_vals)
 def getR_th_extra(G_vals, M_vals, E_vals, \
                   E_F, E_Fd, E_C, E_V, \
-                  Lsc, Ld, m, kT, isN = True) :
+                  Lsc, Ld, m, kT) :
 
-    E_FS = E_C if isN else E_V        # E_F in semiconductor (outside contact)
-    Phi_B= np.abs(E_FS - E_F)         # Full  Schottky barrier height
-    phi_B= Phi_B * Ld/(Ld+Lsc/np.pi)  # Local Schottky barrier height
+    # Compute the Fermi energy at the metal edge
+    x = Ld/(Lsc/np.pi + Ld)
+    EF_c = x*E_F + (1-x)*E_Fd
 
-    # Energy level of local barrier height
-    E_B_L= E_C + phi_B if isN else E_V - phi_B
+    # Range of energy integration window
+    # This ensures we only account for modes
+    # between the 'global' and 'local' 
+    # Schottky barrier heights
+    E_range = np.abs(EF_c - E_F)
 
-    # Difference between band energy and local barrier height
-    # This is equivalent to E-E_C-phi_B in my notes.
-    E_diff_vals = (E_vals - E_B_L)*(1 if isN else -1)
+    # Energy increment from the band edge
+    def getEnergyIncrement(E) :
+        if E > E_C : 
+            return E-E_C
+        elif E < E_V :
+            return E_V-E
+        else :
+            return 0
+    E_diff_vals = np.array([getEnergyIncrement(E) for E in E_vals])
+    E_diff_vals[E_diff_vals > E_range] = 0
 
-    # Restrict integral to energy range "between" barriers
-    E_diff_vals[E_diff_vals < 0          ] = 0
-    E_diff_vals[E_diff_vals > Phi_B-phi_B] = 0
-
-    # Compute the probability that electron will be absorbed
-    # into the metal
-    P_vals = np.sqrt(8)/np.pi * Lsc/(Phi_B-phi_B) * np.sqrt(m) / PLANCK_CONSTANT
-    P_vals = P_vals*G_vals
-    P_vals = np.multiply(P_vals, np.sqrt(E_diff_vals))
-    P_vals = 1e-9 * np.sqrt(ELECTRON_MASS * ELECTRON_CHARGE) * P_vals  # Unit conversions
+    T0 = np.sqrt(8)/np.pi
+    T1 = Lsc*1e-9/E_range          # [m / eV]
+    T2 = G_vals / PLANCK_CONSTANT  # [eV / J / s]
+    T3 = np.sqrt(m*ELECTRON_MASS*ELECTRON_CHARGE*E_diff_vals) # 
+    P_vals = T0*T1*T2*T3
 
     M_extra_vals = np.multiply(M_vals, P_vals)
-    R_th_extra   = getRQfromModes(M_extra_vals, E_vals, E_FS, kT)
+    R_th_extra   = getRQfromModes(M_extra_vals, E_vals, EF_c, kT)
 
     return R_th_extra
+
+
+# Compute the tunneling contribution to the contact resistance.
+# Input:
+# - G_vals: hopping rate [eV] (may be scalar or NumPy array)
+# - D_vals: Density of states [eV^(-1) nm^(-1)] 
+# - E_vals: Energy values [eV]
+# - E_F   : Fermi energy of material X (semiconductor-under-metal) [eV]
+# - E_Fd  : Fermi energy of material S (semiconductor-in-extension)[eV]
+# - E_C   : Energy of the conduction band minimum [eV]
+# - E_V   : Energy of the valence    band maximum [eV]
+# - Lsc   : Electrostatic scale length of the contact [nm]
+# - Ld    : 'Effective' depletion length of the contact [nm]
+# - m_C   : Effective mass (conduction band) [me]
+# - m_V   : Effective mass (valence band)    [me]
+# - kT    : Thermal voltage [eV]
+#
+# Output:
+# - R_tunnel : Tunneling contribution to the contact resistance.
+#               [??] (Units depend on units of M_vals)
+def getR_tunnel(G_vals, D_vals, E_vals, \
+                E_F, E_Fd, E_C, E_V, \
+                Ld, m, kT) :
+
+    # Energy increment from the band edge
+    E_B = np.abs(E_F-E_Fd)  # Barrier height
+    def getEnergyIncrement(E) :
+        if E > E_C : 
+            return E_B-(E-E_C)
+        elif E < E_V :
+            return E_B-(E_V-E)
+        else :
+            return 0
+        
+    E_diff_vals = np.array([getEnergyIncrement(E) for E in E_vals])
+    E_diff_vals[E_diff_vals <= 0] = 0
+
+    # Quantum length [nm]
+    def getLq(dE) :
+        if dE <= 0 :
+            return 0
+        else :
+            return 1e9*RED_PLANCK_CONSTANT/np.sqrt(8*m*ELECTRON_MASS*ELECTRON_CHARGE*dE)
+
+    # Transmission function
+    def getTq(dE) :
+        if dE <= 0 :
+            return 0
+        else :
+            return np.exp(-2.0/3.0 * Ld / getLq(dE) * dE / E_B)
+        
+    Lq_vals = np.array([getLq(dE) for dE in E_diff_vals])
+    Tq_vals = np.array([getTq(dE) for dE in E_diff_vals])
+
+    T2     = G_vals / PLANCK_CONSTANT  # [eV / J / s]
+    P_vals = np.multiply(T2, Tq_vals)
+    P_vals = np.multiply(P_vals, Lq_vals)
+
+    g_tunnel = 2*ELECTRON_CHARGE**2*getThermalExpectation(P_vals, E_vals, kT, E_Fd, D_vals = D_vals)
+    return 1.0/g_tunnel
 
 
 ############

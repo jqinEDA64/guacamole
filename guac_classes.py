@@ -153,6 +153,18 @@ class Contact :
         out = np.reciprocal(np.sum(np.reciprocal(rc_contributions)))
         return out
         
+    # Get the contact conductances (all contributions) for a contact of length Lc
+    #
+    # Inputs:
+    # - Lc : Contact length [nm]
+    #
+    # Outputs:
+    # - R_vals: Contact conductances for thermionic, "extra" thermionic, and tunneling
+    #           contributions.
+    def getConductances(self, Lc) :
+        rc_contributions = np.array([self._getRC_thermionic(Lc), self._getRC_localthermionic(Lc), self._getRC_tunneling(Lc)])
+        return np.reciprocal(rc_contributions)
+
     # Get the transfer length for contact
     #
     # Outputs:
@@ -212,17 +224,18 @@ class Contact :
     # Outputs:
     # - Rth_extra : Local "extra" contribution to thermionic contact resistance [Ohm nm]
     def _getRC_localthermionic(self, Lc) :
-        isN = np.abs(self.EF - self.Ec) < np.abs(self.EF - self.Ev)
         rth = getR_th_extra(self.G0, self._getModes(self.E0), self.E0, \
-                            self.EF, self.Ec, self.Ev, \
-                            self.Lsc, self.Ld, self.mEff_e, self.kT, isN)
+                            self.EF, self.EFd, self.Ec, self.Ev, \
+                            self.Lsc, self.Ld/2, self.mEff_e, self.kT)
         return rth
     
     # Computes the contact resistance of the
     # semiconductor due to quantum tunneling.
     def _getRC_tunneling(self, Lc) :
-        # TODO
-        return FLOAT_MAX
+        r_tunnel = getR_tunnel(self.G0, self.D0, self.E0, \
+                               self.EF, self.EFd, self.Ec, self.Ev, \
+                               self.Ld, self.mEff_e, self.kT)
+        return r_tunnel
     
     # Computes the number of transport modes as a function of energy.
     #
@@ -272,8 +285,11 @@ class CNT_Contact(Contact) :
         self.XS    = W_Graphene - self.Eg/2
 
         # Compute effective mass
-        self.mEff_e = getCNT_effectivemass(n, m, t)
-        self.mEff_h = self.mEff_e
+        # TODO jqin: fix this!!
+        #self.mEff_e = getCNT_effectivemass(n, m, t)
+        #self.mEff_h = self.mEff_e
+        self.mEff_e = 0.05
+        self.mEff_h = 0.05 
 
         # Smooth DoS (regulate singularities somewhat)
         self.D0, self.E0 = getNonUnifConv(self.D0, self.E0, 0.01, "Gaussian")

@@ -384,11 +384,10 @@ def test_MoS2_Semimetal() :
 
 
 # Test of CNT doping.
-def test_CNT_Doping(n, m, t, WM, G, Ld) :
+def test_CNT_Doping(n, m, t, WM, G, nd) :
 
     # Create metal-CNT contact
     test_cnt = CNT_Contact(n, m, t)
-    test_cnt.Ld = Ld
 
     # Set important parameters
     test_cnt.WM =  WM  # Workfunction of the metal [eV]
@@ -397,15 +396,23 @@ def test_CNT_Doping(n, m, t, WM, G, Ld) :
     # computation of many other things
     test_cnt.setInteraction(G)
 
-    print("-------------------------")
-    print("CNT transfer length test: ")
-    print("-------------------------")
+    # Set the CNT doping strength
+    # Positive for p-doping, negative for n-doping
+    test_cnt.setExtensionDoping_CNT(nd)
+
+    print("----------------")
+    print("CNT doping test:")
+    print("----------------")
     print("  WM = " + str(WM) + " [eV]")
     print("  G  = " + str(G) + " [eV]")
     print("  Lt = " + str(round(test_cnt.getLt(),2)) + " [nm]")
     print("  Barrier height = " + str(round(test_cnt.getSchottkyBarrier_p(),2)) + " [eV]")
     print("  RQ = " + str(round(test_cnt.RQ/np.pi/test_cnt.diameter/1e3,2)) + " [kOhm per CNT]")
     print("  RC(Lc = inf) = " + str(round(test_cnt.getRC_perCNT(1e5)/1e3, 2)) + " [kOhm per CNT]")
+    print("  ")
+    print("  Doping = " + str(round(nd, 2)) + " [electrons * nm^(-1)]")
+    print("  Depletion length = " + str(round(test_cnt.Ld, 2)) + " [nm]")
+    print("  Fermi level in extension = " + str(round(test_cnt.EFd, 2)) + " [eV]")
 
     return 
 
@@ -434,4 +441,4 @@ def test_CNT_Doping(n, m, t, WM, G, Ld) :
 
 #test_MoS2_Semimetal()
 
-test_CNT_Doping(13, 0, 3, 5.5, 0.01, 4)
+test_CNT_Doping(8, 0, 3, 4, 0.01, -0.5)

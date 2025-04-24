@@ -225,12 +225,15 @@ def getInterfaceModesAndDOS(M_X_vals, D_X_vals, E_X_vals, \
 #            we use interpolation to compute the total charge.
 # - D_out  : Density of states of modified system.
 # - E_out  : Energy levels of states of modified system.
+# - Q_extra: Extra electronic charge of the system (due to doping, for example).
+#            Use Q_extra < 0 for extra electrons (n-type doping).
+#            Use Q_extra > 0 for extra holes     (p-type doping).
 #
 # Output:
 # - CNL_out: Output charge neutrality level. This better be unique!
 #            If not unique, (i.e., MIGS density is zero), then 
 #            presumably interpolation will fail.
-def getCNL(D_in, E_in, CNL_in, D_out, E_out):
+def getCNL(D_in, E_in, CNL_in, D_out, E_out, Q_extra = 0):
 
     # Sanity check that total number of states is preserved
     Q_tot_in  = np.sum(D_in )*getEnergyResolution(E_in )
@@ -242,19 +245,22 @@ def getCNL(D_in, E_in, CNL_in, D_out, E_out):
     # Compute the functions Q_in(E_in) and Q_out(E_out),
     # the total charges at zero temperature as a function
     # of the Fermi level E_{in, out}.
-    Q_in  = scipy.integrate.cumulative_trapezoid(D_in , x = E_in , initial = 0)
-    Q_out = scipy.integrate.cumulative_trapezoid(D_out, x = E_out, initial = 0)
+    #
+    # Add an extra 1e-3 so Q_{in, out} are strictly increasing.
+    Q_in  = scipy.integrate.cumulative_trapezoid(D_in + 1e-3, x = E_in , initial = 0)
+    Q_out = scipy.integrate.cumulative_trapezoid(D_out+ 1e-3, x = E_out, initial = 0)
     
     # Compute Q(CNL_in), the total amount of electronic charge
     # in the original ("in") material.
     Q = scipy.interpolate.CubicSpline(E_in, Q_in)(CNL_in)
+    Q = Q - Q_extra
     
     # Compute CNL_out, the charge neutrality level of the output
     # density of states. Again use spline interpolation but
     # "invert" it simply by using E(Q) instead of Q(E).
     CNL_out = scipy.interpolate.CubicSpline(Q_out, E_out)(Q)
     
-    return CNL_out
+    return float(CNL_out)
 
 
 # Get analytical approximation to MIGS density and CNL in bandgap.
@@ -549,6 +555,7 @@ def getR_cf(RQ, gC, Rsh, Lc):
 # - M_vals: Modes per energy [??] (units depend on dimension of semiconductor) 
 # - E_vals: Energy values [eV]
 # - E_F   : Fermi energy of material X (semiconductor-under-metal) [eV]
+# - E_Fd  : Fermi energy of material S (semiconductor-in-extension)[eV]
 # - E_C   : Energy of the conduction band minimum [eV]
 # - E_V   : Energy of the valence    band maximum [eV]
 # - Lsc   : Electrostatic scale length of the contact [nm]
@@ -562,7 +569,7 @@ def getR_cf(RQ, gC, Rsh, Lc):
 # - R_th_extra : 'Extra' thermionic contribution to the contact resistance.
 #                [??] (Units depend on units of M_vals)
 def getR_th_extra(G_vals, M_vals, E_vals, \
-                  E_F, E_C, E_V, \
+                  E_F, E_Fd, E_C, E_V, \
                   Lsc, Ld, m, kT, isN = True) :
 
     E_FS = E_C if isN else E_V        # E_F in semiconductor (outside contact)
@@ -588,6 +595,25 @@ def getR_th_extra(G_vals, M_vals, E_vals, \
     P_vals = 1e-9 * np.sqrt(ELECTRON_MASS * ELECTRON_CHARGE) * P_vals  # Unit conversions
 
     M_extra_vals = np.multiply(M_vals, P_vals)
-    R_th_extra = getRQfromModes(M_extra_vals, E_vals, E_FS, kT)
+    R_th_extra   = getRQfromModes(M_extra_vals, E_vals, E_FS, kT)
 
     return R_th_extra
+
+
+############
+# DOPING
+############
+
+# Returns the depletion length (in [nm])
+# of a one-sided junction in 3D. This is
+# the classical formula.
+#
+# Inputs:
+# - dV : Voltage dropped across the junction [V]
+# - eps: Relative permittivity               [eps0]
+# - n  : Charge density                      [nm^(-3)]
+# - kT : Thermal voltage                     [eV]
+def getDepletionLength(dV, eps, n) :
+    N = np.abs(n)*1e27  # Convert to [m^(-3)]
+    L = np.sqrt(2*eps*EPS_0_SI*np.abs(dV)/ELECTRON_CHARGE/N)
+    return L*1e9

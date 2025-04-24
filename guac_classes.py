@@ -28,14 +28,20 @@ class Contact :
     WM = 0     # Workfunction of the metal [eV]
     XS = 0     # Electron affinity of the semiconductor [eV]
     Rsh= 0     # Sheet resistance of the semiconductor [Ohm per sq]
+
+    # Doping-related parameters
     Lsc= 1     # Electrostatic scale length of the contact [nm]
-    Ld = 1e5   # Depletion length of the semiconductor outside the contact [nm].
+    td = 1     # 'Thickness' of electrostatic dopant [nm]. Must be estimated to
+               # compute the depletion length.
+    Ld = 1e5   # Depletion length of the semiconductor in the extension region [nm].
                # This is the 'effective' depletion length as defined by
                # Carlo Gilardi in https://doi.org/10.1109/TED.2022.3190464, not
                # the full depletion length. Arbitrarily initialized to a huge
                # number to suppress quantum tunneling; should change this 
                # according to the technology.
-
+    nd = 0     # Doping density [electrons * nm^(-2)] (positive = p-type; negative = n-type)
+    EFd= 0     # Fermi level (relative to Ec and Ev) in the extension region
+ 
     # These parameters are computed.
     E0 = None  # Energy values for density of states (no metal) [eV]
     D0 = None  # Density of states (no metal) [eV^(-1) nm^(-2)]
@@ -113,10 +119,13 @@ class Contact :
         # Compute specific contact conductivity. This sets self.gC.
         self.gC = 1e-6*getGC(self.G0, self.D2, self.E2, self.EF, self.kT)
 
-    # Sets the depletion length of the extension region.
-    # This depends on doping.
-    def setExtensionDepletionLength(self, Ld) :
-        self.Ld = Ld
+    # Sets the extension doping in [nm^(-2)]. Use positive number for p-type
+    # dopant and negative number for n-type dopant.
+    def setExtensionDoping(self, nd) :
+        self.nd = nd
+        self.EFd= getCNL(self.D0, self.E0, (self.Ec+self.Ev)/2, self.D0, self.E0, Q_extra = nd)
+        dV      = self.EF - self.EFd
+        self.Ld = getDepletionLength(dV, self.eps, nd/self.td)
 
     #########################################
     # Externally accessible physics functions
@@ -253,6 +262,7 @@ class CNT_Contact(Contact) :
         # Compute CNT diameter [nm]
         # See https://www.photon.t.u-tokyo.ac.jp/~maruyama/kataura/chirality.html
         self.diameter = self.a*np.sqrt(3*(n*n+n*m+m*m))/np.pi
+        self.diameter = float(self.diameter)
 
         # Compute DoS, Ec, Ev
         super().__init__()
@@ -285,6 +295,14 @@ class CNT_Contact(Contact) :
 
         # Convert from [Ohm.nm] to [Ohm per CNT]
         return Rc/(np.pi*self.diameter)
+
+    # Sets the extension doping in the CNT.
+    # Here, nd is in [nm^(-1)] instead of [nm^(-2)].
+    #
+    # Negative/positive nd corresponds to n/p-type doping.
+    def setExtensionDoping_CNT(self, nd) :
+        self.setExtensionDoping(nd/(np.pi*self.diameter))
+
 
     #########################################
     # Internal computation functions
@@ -326,6 +344,7 @@ class CNT_Contact(Contact) :
     def _getModes(self, E_vals) :
 
         # Number of transport modes per energy of S
+        # Assume single-subband transport
         M0  = np.asarray([2 if D > 0 else 0 for D in self.D0])
 
         # Resample to the input energies

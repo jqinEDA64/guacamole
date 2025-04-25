@@ -249,6 +249,7 @@ def getCNL(D_in, E_in, CNL_in, D_out, E_out, Q_extra = 0):
     # TODO jqin: add temperature dependence here
     #            Should smooth D_in, D_out by kT lineshape
 
+
     # Compute the functions Q_in(E_in) and Q_out(E_out),
     # the total charges at zero temperature as a function
     # of the Fermi level E_{in, out}.
@@ -579,7 +580,9 @@ def getR_th_extra(G_vals, M_vals, E_vals, \
                   Lsc, Ld, m, kT, doSum = True) :
 
     # Quick exit if there is no energy barrier
-    if E_F > E_V and E_F < E_C :
+    # TODO modify for when the contact region is strongly-doped
+    #      opposite the extension??
+    if not (E_F > E_V and E_F < E_C) :
         if doSum :
             return FLOAT_MAX
         else :
@@ -641,7 +644,9 @@ def getR_tunnel(G_vals, D_vals, E_vals, \
                 Ld, m, kT, doSum = True) :
 
     # Quick exit if there is no energy barrier
-    if E_F > E_V and E_F < E_C :
+    # TODO modify for when the contact region is strongly-doped
+    #      opposite the extension??
+    if not (E_F > E_V and E_F < E_C) :
         if doSum :
             return FLOAT_MAX
         else :

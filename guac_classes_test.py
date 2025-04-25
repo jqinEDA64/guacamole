@@ -415,6 +415,7 @@ def test_CNT_Doping(n, m, t, WM, G, nd) :
     print("  Fermi level in extension = " + str(round(test_cnt.EFd, 2)) + " [eV]")
 
     print(test_cnt.getConductances(10))
+    test_cnt.plotConductances(10)
 
     return 
 
@@ -443,4 +444,4 @@ def test_CNT_Doping(n, m, t, WM, G, nd) :
 
 #test_MoS2_Semimetal()
 
-test_CNT_Doping(8, 0, 3, 4, 0.1, -0.5)
+test_CNT_Doping(8, 0, 3, 5, 0.1, 0.01)

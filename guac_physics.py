@@ -46,10 +46,11 @@ EPS_0_NATURAL   = 55.3      # [e^2 eV^(-1) um^(-1)]
 # - D_vals: [Optional] can include the semiconductor density of states
 #           if needed. If included, returns the thermal average of X*D
 #           WITHOUT normalizing for the thermal average of D itself.
+# - doSum : [Optional] if false, computes the dot product but does not sum.
 #
 # Output:
 # - X_avg : Thermal expectation value of X
-def getThermalExpectation(X_vals, E_vals, kT, E_F, D_vals = None) :
+def getThermalExpectation(X_vals, E_vals, kT, E_F, D_vals = None, doSum = True) :
 
     def getFD_Derivative():
         if (E_F > np.max(E_vals)) or (E_F < np.min(E_vals)) :
@@ -68,7 +69,10 @@ def getThermalExpectation(X_vals, E_vals, kT, E_F, D_vals = None) :
     else :
         DX_vals = X_vals
     
-    return np.dot(DX_vals, FD_der_vals)
+    if doSum :
+        return np.dot(DX_vals, FD_der_vals)
+    else :
+        return np.multiply(DX_vals, FD_der_vals)
 
 
 ####################################
@@ -242,6 +246,9 @@ def getCNL(D_in, E_in, CNL_in, D_out, E_out, Q_extra = 0):
     if abs(Q_tot_err) > 0.5 :  # Accept rel. err. less than 0.5%
         err_out("Inputs to CNL computation do not satisfy Sum Rule: Rel Err = " + str(Q_tot_err))
     
+    # TODO jqin: add temperature dependence here
+    #            Should smooth D_in, D_out by kT lineshape
+
     # Compute the functions Q_in(E_in) and Q_out(E_out),
     # the total charges at zero temperature as a function
     # of the Fermi level E_{in, out}.
@@ -433,7 +440,7 @@ def getRQ(vX_vals, D_vals, E_vals, E_F, kT):
     G_Q = 0.5*ELECTRON_CHARGE*getThermalExpectation(vX_in, E_vals, kT, E_F, D_vals = D_in)
     
     # Return quantum resistance
-    return 1.0/G_Q
+    return np.reciprocal(G_Q)
 
 
 # Compute the quantum resistance of
@@ -451,14 +458,14 @@ def getRQ(vX_vals, D_vals, E_vals, E_F, kT):
 #
 # Output:
 # - Quantum resistance [Ohm*?] (units depend on # transport modes and dimension of resistor)
-def getRQfromModes(M_vals, E_vals, E_F, kT):
+def getRQfromModes(M_vals, E_vals, E_F, kT, doSum = True):
     
     # Compute quantum conductance
-    G_Q = getThermalExpectation(M_vals, E_vals, kT, E_F, D_vals = None)
+    G_Q = getThermalExpectation(M_vals, E_vals, kT, E_F, D_vals = None, doSum = doSum)
     G_Q = 2*ELECTRON_CHARGE**2/PLANCK_CONSTANT*G_Q 
 
     # Return quantum resistance
-    return 1.0/G_Q
+    return np.reciprocal(G_Q)
 
 # Compute the specific contact conductivity
 # of a metal-semiconductor interface.
@@ -569,8 +576,15 @@ def getR_cf(RQ, gC, Rsh, Lc):
 #                [??] (Units depend on units of M_vals)
 def getR_th_extra(G_vals, M_vals, E_vals, \
                   E_F, E_Fd, E_C, E_V, \
-                  Lsc, Ld, m, kT) :
+                  Lsc, Ld, m, kT, doSum = True) :
 
+    # Quick exit if there is no energy barrier
+    if E_F > E_V and E_F < E_C :
+        if doSum :
+            return FLOAT_MAX
+        else :
+            return FLOAT_MAX*np.ones(E_vals.shape)
+        
     # Compute the Fermi energy at the metal edge
     x = Ld/(Lsc/np.pi + Ld)
     EF_c = x*E_F + (1-x)*E_Fd
@@ -599,7 +613,7 @@ def getR_th_extra(G_vals, M_vals, E_vals, \
     P_vals = T0*T1*T2*T3
 
     M_extra_vals = np.multiply(M_vals, P_vals)
-    R_th_extra   = getRQfromModes(M_extra_vals, E_vals, EF_c, kT)
+    R_th_extra   = getRQfromModes(M_extra_vals, E_vals, EF_c, kT, doSum = doSum)
 
     return R_th_extra
 
@@ -624,7 +638,14 @@ def getR_th_extra(G_vals, M_vals, E_vals, \
 #               [??] (Units depend on units of M_vals)
 def getR_tunnel(G_vals, D_vals, E_vals, \
                 E_F, E_Fd, E_C, E_V, \
-                Ld, m, kT) :
+                Ld, m, kT, doSum = True) :
+
+    # Quick exit if there is no energy barrier
+    if E_F > E_V and E_F < E_C :
+        if doSum :
+            return FLOAT_MAX
+        else :
+            return FLOAT_MAX*np.ones(E_vals.shape)
 
     # Energy increment from the band edge
     E_B = np.abs(E_F-E_Fd)  # Barrier height
@@ -660,8 +681,9 @@ def getR_tunnel(G_vals, D_vals, E_vals, \
     P_vals = np.multiply(T2, Tq_vals)
     P_vals = np.multiply(P_vals, Lq_vals)
 
-    g_tunnel = 2*ELECTRON_CHARGE**2*getThermalExpectation(P_vals, E_vals, kT, E_Fd, D_vals = D_vals)
-    return 1.0/g_tunnel
+    g_tunnel = 2*ELECTRON_CHARGE**2 \
+                *getThermalExpectation(P_vals, E_vals, kT, E_Fd, D_vals = D_vals, doSum = doSum)
+    return np.reciprocal(g_tunnel)
 
 
 ############

@@ -114,7 +114,8 @@ class Contact :
 
         # Compute quantum resistance, accounting for Schottky barrier
         # and specific contact conductivity. This sets self.RQ.
-        self._compRQ()
+        # It also sets E2 and D2, among other parameters.
+        self.RQ = self._compRQ()
 
         # Compute specific contact conductivity. This sets self.gC.
         self.gC = 1e-6*getGC(self.G0, self.D2, self.E2, self.EF, self.kT)
@@ -165,6 +166,41 @@ class Contact :
         rc_contributions = np.array([self._getRC_thermionic(Lc), self._getRC_localthermionic(Lc), self._getRC_tunneling(Lc)])
         return np.reciprocal(rc_contributions)
 
+    # plotConductances plots the conductances of the various contributions
+    # to contact resistance as a function of energy.
+    #
+    # Here, the Fermi energy is assumed to be the Fermi energy of the 
+    # semiconductor in the extension. Hence, we need to shift the values
+    # of the thermionic and 'extra' thermionic conductances. 
+    def plotConductances(self, Lc) :
+        gc_thermionic = self._getRC_thermionic     (Lc, doSum = False)
+        gc_extratherm = self._getRC_localthermionic(Lc, doSum = False)
+        gc_tunnel     = self._getRC_tunneling      (Lc, doSum = False)
+
+        gc_thermionic = np.reciprocal(gc_thermionic)
+        gc_extratherm = np.reciprocal(gc_extratherm)
+        gc_tunnel     = np.reciprocal(gc_tunnel)
+
+        dE_thermionic = 0 #self.EFd - self.EF
+        x = self.Ld/(self.Lsc/np.pi + self.Ld)
+        dE_extratherm = 0 #dE_thermionic*x
+
+        plt.fill_betweenx(self.E2 + dE_thermionic, gc_thermionic, color = "red", alpha = 0.3, label = "Thermionic")
+        plt.fill_betweenx(self.E0 + dE_extratherm, gc_extratherm, color = "orange", alpha = 0.3, label = "Local thermionic")
+        plt.fill_betweenx(self.E0                , gc_tunnel, color = "blue", alpha = 0.3, label = "Tunneling")
+        plt.ylim(self.Ev - self.Eg/2, self.Ec + self.Eg/2)
+        plt.ylabel("Energy [eV]")
+        plt.xlabel("Current modes [A nm$^{-2}$ eV$^{-1}$]")
+        plt.axhline(y = self.Ec, color = "black", linestyle = "dashed")
+        plt.axhline(y = self.Ev, color = "black", linestyle = "dashed")
+
+        x_max = np.max(np.concatenate((gc_tunnel, gc_extratherm, gc_thermionic)))
+        plt.text(x_max, self.Ec-self.Eg/20, "$E_C$", ha='left', va='center')
+        plt.text(x_max, self.Ev+self.Eg/20, "$E_V$", ha='left', va='center')
+        plt.title("Contact resistance: conductance modes vs. energy")
+        plt.legend()
+        plt.savefig("test_out/conductances", dpi = 500)
+
     # Get the transfer length for contact
     #
     # Outputs:
@@ -198,7 +234,7 @@ class Contact :
     
     # Computes the electrostatic properties (CNL, EF, etc.) of
     # the semiconductor.
-    def _compRQ(self) :
+    def _compRQ(self, doSum = True) :
         raise Exception("_compRQ not implemented for generic base class")
 
     # Computes the thermionic contact resistance
@@ -206,12 +242,17 @@ class Contact :
     #
     # Inputs:
     # - Lc : Contact length [nm]
+    # - doSum : Computes the sum of all modes
     #
-     # Outputs:
+    # Outputs:
     # - Rth: Thermionic contact resistance [Ohm . nm]
-    def _getRC_thermionic(self, Lc) :
-        out = 1e3*getR_cf(1e-3*self.RQ, 1e6*self.gC, self.Rsh, 1e-3*Lc)
-        return out
+    def _getRC_thermionic(self, Lc, doSum = True) :
+        if doSum :
+            return 1e3*getR_cf(1e-3*self.RQ, 1e6*self.gC, self.Rsh, 1e-3*Lc) 
+        else :
+            RQ = self._compRQ(doSum = False)
+            scaling = 1e3*getR_cf(1e-3*self.RQ, 1e6*self.gC, self.Rsh, 1e-3*Lc) / self.RQ
+            return scaling*RQ
     
     # Computes the 'extra' thermionic contact resistance
     # of the semiconductor due to local Schottky barrier
@@ -223,18 +264,18 @@ class Contact :
     #
     # Outputs:
     # - Rth_extra : Local "extra" contribution to thermionic contact resistance [Ohm nm]
-    def _getRC_localthermionic(self, Lc) :
+    def _getRC_localthermionic(self, Lc, doSum = True) :
         rth = getR_th_extra(self.G0, self._getModes(self.E0), self.E0, \
                             self.EF, self.EFd, self.Ec, self.Ev, \
-                            self.Lsc, self.Ld/2, self.mEff_e, self.kT)
+                            self.Lsc, self.Ld/2, self.mEff_e, self.kT, doSum)
         return rth
     
     # Computes the contact resistance of the
     # semiconductor due to quantum tunneling.
-    def _getRC_tunneling(self, Lc) :
+    def _getRC_tunneling(self, Lc, doSum = True) :
         r_tunnel = getR_tunnel(self.G0, self.D0, self.E0, \
                                self.EF, self.EFd, self.Ec, self.Ev, \
-                               self.Ld, self.mEff_e, self.kT)
+                               self.Ld, self.mEff_e, self.kT, doSum)
         return r_tunnel
     
     # Computes the number of transport modes as a function of energy.
@@ -333,7 +374,7 @@ class CNT_Contact(Contact) :
         return self.E0, self.D0
     
     # Sets the quantum resistance self.RQ in [Ohm.nm]
-    def _compRQ(self) :
+    def _compRQ(self, doSum = True) :
         
         # Number of transport modes per energy of S
         M_in  = self._getModes(self.E0)
@@ -347,11 +388,13 @@ class CNT_Contact(Contact) :
         M_int, self.D2, self.E2 = getInterfaceModesAndDOS(M_out, self.D1, self.E1, \
                                                           M_in , self.D0, self.E0)
 
-        self.RQ = getRQfromModes(M_int, self.E2, self.EF, self.kT)  # [Ohm per CNT]
-        self.RQ = (self.diameter*np.pi) * self.RQ                   # [Ohm . nm]
+        RQ = getRQfromModes(M_int, self.E2, self.EF, self.kT, doSum)  # [Ohm per CNT]
+        RQ = (self.diameter*np.pi) * RQ                               # [Ohm . nm]
 
-    def _getRC_localthermionic(self, Lc) :
-        rth_extra = super()._getRC_localthermionic(Lc)
+        return RQ
+
+    def _getRC_localthermionic(self, Lc, doSum = True) :
+        rth_extra = super()._getRC_localthermionic(Lc, doSum = doSum)
 
         # Convert from [Ohm per CNT] to [Ohm nm]
         return np.pi*self.diameter*rth_extra

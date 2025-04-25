@@ -237,7 +237,7 @@ def getInterfaceModesAndDOS(M_X_vals, D_X_vals, E_X_vals, \
 # - CNL_out: Output charge neutrality level. This better be unique!
 #            If not unique, (i.e., MIGS density is zero), then 
 #            presumably interpolation will fail.
-def getCNL(D_in, E_in, CNL_in, D_out, E_out, Q_extra = 0):
+def getCNL(D_in, E_in, CNL_in, D_out, E_out, kT, Q_extra = 0):
 
     # Sanity check that total number of states is preserved
     Q_tot_in  = np.sum(D_in )*getEnergyResolution(E_in )
@@ -248,25 +248,26 @@ def getCNL(D_in, E_in, CNL_in, D_out, E_out, Q_extra = 0):
     
     # TODO jqin: add temperature dependence here
     #            Should smooth D_in, D_out by kT lineshape
-
+    D_in_1 , E_in_1  = getNonUnifConv(D_in , E_in , kT, kern_type = "Logistic")
+    D_out_1, E_out_1 = getNonUnifConv(D_out, E_out, kT, kern_type = "Logistic")
 
     # Compute the functions Q_in(E_in) and Q_out(E_out),
     # the total charges at zero temperature as a function
     # of the Fermi level E_{in, out}.
     #
     # Add an extra 1e-3 so Q_{in, out} are strictly increasing.
-    Q_in  = scipy.integrate.cumulative_trapezoid(D_in + 1e-3, x = E_in , initial = 0)
-    Q_out = scipy.integrate.cumulative_trapezoid(D_out+ 1e-3, x = E_out, initial = 0)
+    Q_in  = scipy.integrate.cumulative_trapezoid(D_in_1 + 1e-3, x = E_in_1 , initial = 0)
+    Q_out = scipy.integrate.cumulative_trapezoid(D_out_1+ 1e-3, x = E_out_1, initial = 0)
     
     # Compute Q(CNL_in), the total amount of electronic charge
     # in the original ("in") material.
-    Q = scipy.interpolate.CubicSpline(E_in, Q_in)(CNL_in)
+    Q = scipy.interpolate.CubicSpline(E_in_1, Q_in)(CNL_in)
     Q = Q - Q_extra
     
     # Compute CNL_out, the charge neutrality level of the output
     # density of states. Again use spline interpolation but
     # "invert" it simply by using E(Q) instead of Q(E).
-    CNL_out = scipy.interpolate.CubicSpline(Q_out, E_out)(Q)
+    CNL_out = scipy.interpolate.CubicSpline(Q_out, E_out_1)(Q)
     
     return float(CNL_out)
 

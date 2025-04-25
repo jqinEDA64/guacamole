@@ -106,7 +106,7 @@ class Contact :
         self.G0          = G
 
         # Compute charge neutrality level (CNL)
-        self.CNL = getCNL(self.D0, self.E0, self.CNL_0, self.D1, self.E1)
+        self.CNL = getCNL(self.D0, self.E0, self.CNL_0, self.D1, self.E1, self.kT)
 
         # Compute Fermi level of system (equivalent to Schottky barrier position)
         E_FM     = self.Ec - (self.WM - self.XS)  # Fermi energy of isolated metal
@@ -124,7 +124,7 @@ class Contact :
     # dopant and negative number for n-type dopant.
     def setExtensionDoping(self, nd) :
         self.nd = nd
-        self.EFd= getCNL(self.D0, self.E0, (self.Ec+self.Ev)/2, self.D0, self.E0, Q_extra = nd)
+        self.EFd= getCNL(self.D0, self.E0, (self.Ec+self.Ev)/2, self.D0, self.E0, self.kT, Q_extra = nd)
         dV      = self.EF - self.EFd
         self.Ld = getDepletionLength(dV, self.eps, nd/self.td)
 

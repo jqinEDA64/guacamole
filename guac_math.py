@@ -131,6 +131,19 @@ def __getGaussianWidth(Sigma, dE):
         err_out("Insufficient resolution for Gaussian kernel")
     return (int)(3*Sigma/dE)+1
 
+# Returns the half-size of the
+# logistic kernel of width kT.
+#
+# If the length of the 1D kernel is 
+# 2N+1, this function returns N+1.
+#
+# Inputs:
+# - dE    : grid discretization (float)
+# - kT    : Distribution width  (float)
+def __getLogisticWidth(kT, dE):
+    if dE > getMinResolution(kT) :
+        err_out("Insufficient resolution for Gaussian kernel")
+    return (int)(10*kT/dE)+1
 
 # Returns the Lorentzian kernel of 
 # width Gamma. 
@@ -184,6 +197,28 @@ def __getGaussianKernel(Sigma, dE):
     out = scipy.stats.norm.pdf(out*scale)
     return out / np.sum(out)  # Normalize
     
+# Returns the Logistic kernel of 
+# width = kT
+#
+# The length of the 1D kernel is
+# guaranteed to be odd, such that
+# the kernel has a well-defined 
+# center position. 
+#
+# Inputs:
+# - dE    : grid discretization
+# - kT    : Logistic width (thermal voltage)
+def __getLogisticKernel(kT, dE):
+    N = __getLogisticWidth(kT, dE)
+    
+    # Create the kernel. The middle element
+    # has index = N and value = 0.
+    # The total length is 2N + 1.
+    out = np.arange(-N, N+1)
+    
+    FD_der_vals = scipy.stats.logistic.pdf(out, loc = 0, scale = kT/dE)
+    FD_der_vals = FD_der_vals / np.sum(FD_der_vals) # normalize
+    return FD_der_vals
 
 # Main function of this section.
 # Returns appropriate kernel size, given
@@ -193,6 +228,8 @@ def getKernelWidth(Param, E_vals, dE, kerneltype = "Lorentzian"):
         return __getLorentzianWidth(Param, E_vals, dE)
     elif kerneltype == "Gaussian" :
         return __getGaussianWidth  (Param, dE)
+    elif kerneltype == "Logistic" :
+        return __getLogisticWidth  (Param, dE)
     else :
         err_out("Kernel type " + kerneltype + " not recognized")
     
@@ -213,6 +250,8 @@ def getKernel(Param, E_vals, dE, kerneltype = "Lorentzian"):
         return __getLorentzianKernel(Param, E_vals, dE)
     elif kerneltype == "Gaussian" :
         return __getGaussianKernel  (Param, dE)
+    elif kerneltype == "Logistic" :
+        return __getLogisticKernel  (Param, dE)
     else :
         err_out("Kernel type " + kerneltype + " not recognized")
         return 0

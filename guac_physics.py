@@ -583,11 +583,11 @@ def getR_th_extra(G_vals, M_vals, E_vals, \
     # Quick exit if there is no energy barrier
     # TODO modify for when the contact region is strongly-doped
     #      opposite the extension??
-    if not (E_F > E_V and E_F < E_C) :
-        if doSum :
-            return FLOAT_MAX
-        else :
-            return FLOAT_MAX*np.ones(E_vals.shape)
+    #if not (E_F > E_V and E_F < E_C) :
+    #    if doSum :
+    #        return FLOAT_MAX
+    #    else :
+    #        return FLOAT_MAX*np.ones(E_vals.shape)
         
     # Compute the Fermi energy at the metal edge
     x = Ld/(Lsc/np.pi + Ld)
@@ -647,11 +647,11 @@ def getR_tunnel(G_vals, D_vals, E_vals, \
     # Quick exit if there is no energy barrier
     # TODO modify for when the contact region is strongly-doped
     #      opposite the extension??
-    if not (E_F > E_V and E_F < E_C) :
-        if doSum :
-            return FLOAT_MAX
-        else :
-            return FLOAT_MAX*np.ones(E_vals.shape)
+    #if not (E_F > E_V and E_F < E_C) :
+    #    if doSum :
+    #        return FLOAT_MAX
+    #    else :
+    #        return FLOAT_MAX*np.ones(E_vals.shape)
 
     # Energy increment from the band edge
     E_B = np.abs(E_F-E_Fd)  # Barrier height

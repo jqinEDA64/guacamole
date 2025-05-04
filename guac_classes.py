@@ -123,6 +123,8 @@ class Contact :
     # Sets the extension doping in [nm^(-2)]. Use positive number for p-type
     # dopant and negative number for n-type dopant.
     def setExtensionDoping(self, nd) :
+        if nd == 0 :
+            raise Exception("Doping electron concentration must be nonzero")
         self.nd = nd
         self.EFd= getCNL(self.D0, self.E0, (self.Ec+self.Ev)/2, self.D0, self.E0, self.kT, Q_extra = nd)
         dV      = self.EF - self.EFd

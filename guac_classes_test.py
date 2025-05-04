@@ -8,6 +8,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import scipy
 import os
 import copy
@@ -430,6 +431,102 @@ def test_CNT_Doping(n, m, t, WM, G, nd) :
     plt.xscale("log")
     plt.savefig("test_out/Rc_Lc", dpi = 500)
 
+# Test of CNT doping with different bandgaps
+# at infinite length.
+def test_CNT_Doping_Eg(WM, G) :
+
+    Lc = 1e5
+
+    # Hopping parameter
+    t = 3.0
+
+    # Create many CNTs with various chiralities
+    cnts = []
+    for n in range(6, 16) :
+        for m in range(0, n) :
+            if ((n-m) % 3) == 0 :  # Metallic CNT (don't include)
+                continue
+            if n+m > 24 :          # Unusually large CNT (don't include)
+                continue
+            cnt = CNT_Contact(n, m, t)
+            cnt.WM = WM
+            cnt.setInteraction(G)
+            cnts.append(cnt)
+            print("Added (n,m) = (" + str(n) + "," + str(m) + ") CNT")
+
+    # Reasonable p-type doping values
+    num_Nd     = 5
+    Nd_choices = np.linspace(0.001, 0.2, num_Nd)
+    colors     = ["red", "orange", "blue", "green", "purple"]
+
+    # Compute RC for various doping levels
+    for i in range(num_Nd):
+        for cnt in cnts :
+            cnt.setExtensionDoping_CNT(Nd_choices[i])
+            plt.plot(cnt.Eg, 1e-3*cnt.getRC_perCNT(Lc), marker = 'o', color = colors[i])
+            print("Finished (n,m) = (" + str(cnt.n) + ", " + str(cnt.m) + "), Nd = " + str(Nd_choices[i]) + ", RC = " +  str(1e-3*cnt.getRC_perCNT(Lc)))
+
+    plt.xlabel("CNT Bandgap [eV]")
+    plt.ylabel("$R_C$ [k$\\Omega$ per CNT]")
+    plt.yscale("log")
+    plt.title("$R_C$ as a function of CNT bandgap and doping")
+
+    # Custom legend
+    custom_lines = [Line2D([0], [0], color = colors[i], lw = 4) for i in range(len(colors))]
+    custom_names = ["$N_a$ = " + str(round(Nd_choices[i], 2)) + " [nm$^{-1}$]" for i in range(len(colors))]
+    plt.legend(custom_lines, custom_names)
+
+    plt.savefig("test_out/RC_Eg_Nd", dpi = 500)
+
+# Verifies the correctness of DoS generation in MoS2 class. 
+def test_MoS2_BandDiagram() :
+
+    test_mos2 = MoS2_Contact(0)
+    G         = 0.1  # Strength of interaction
+
+    E0 = test_mos2.E0
+    D0 = test_mos2.D0
+
+    D0_c = D0.copy()
+    D0_c[E0 < 0] = 0
+
+    D0_v = D0.copy()
+    D0_v[E0 > 0] = 0
+
+    D1_c, E1_c = getNonUnifConv(D0_c, E0, G, "Lorentzian")
+    D1_v, E1_v = getNonUnifConv(D0_v, E0, G, "Lorentzian")
+
+    def plotBands(Dc, Dv, E_vals, filename) :
+
+        # Combine the density of states of conduction and valence bands
+        # so that both Dc and Ev span the entire range
+        Dt = Dc + Dv
+
+        plt.fill_betweenx(E_vals, Dc,     color = "red" , alpha = 0.5)
+        plt.fill_betweenx(E_vals, Dc, Dt, color = "blue", alpha = 0.5)
+        plt.ylim(-2,2)
+
+        # Plot the conduction band with a red outline
+        E_c = E_vals[E_vals > 0.0]
+        D_c = Dc    [E_vals > 0.0]
+        plt.plot(D_c, E_c, color = "red")
+
+        plt.savefig("test_out/" + filename, dpi = 500)
+        plt.clf()
+
+    plotBands(D0_c, D0_v, E0  , "DOS_MoS2_0")
+    plotBands(D1_c, D1_v, E1_v, "DOS_MoS2_1")
+
+    return
+    #plt.plot(test_mos2.D0, test_mos2.E0, color = "black", linestyle = "dashed")
+
+    plt.savefig("test_out/DOS_MoS2_0", dpi = 500)
+    plt.clf()
+
+    plt.plot(test_mos2.D1, test_mos2.E1, color = "black", linestyle = "dashed")
+    plt.savefig("test_out/DOS_MoS2_1", dpi = 500)
+    plt.clf()
+
 #test_DoS(13, 0, 3.2, 0.3)
 #test_CNT_RQ()
 #test_CNT_Lc(16, 0, 3.22, 5.5, 0.01)
@@ -444,4 +541,8 @@ def test_CNT_Doping(n, m, t, WM, G, nd) :
 
 #test_MoS2_Semimetal()
 
-test_CNT_Doping(8, 0, 3, 5, 0.1, 0.01)
+#test_CNT_Doping(8, 0, 3, 5, 0.1, 0.01)
+
+#test_CNT_Doping_Eg(5.5, 0.01)
+
+#test_MoS2_BandDiagram()
